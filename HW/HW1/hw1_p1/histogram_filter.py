@@ -27,24 +27,35 @@ class HistogramFilter(object):
 
 		T = np.copy(belief);
 		T *= 0.9;
-		action_ = -action[1], action[0]
+		action_ = np.zeros_like(action)
+		action_[0] = -action[1]
+		action_[1] = action[0]
+
 		border = np.zeros_like(cmap, dtype = float)
-		if action_[0] == 0: # up and down
-			T = np.roll(T, action_[1], axis = 0)
-			if(action_[1] > 0):
-				T[0,:] = 0;
+		# print("actionOOO:\n" + str(action));
+		# print("action_:\n" + str(action_));
+		# print("val:\n" + str(action_[np.where(action_ != 0)][0]));
+		# print("aid:\n" + str(np.where(action_ != 0)[0][0]));
+		# print("T:\n" + str(np.round(T, 3)));
+		T = np.roll(T, action_[np.where(action_ != 0)][0], axis = np.where(action_ != 0)[0][0])
+		
+		if np.where(action_ != 0)[0][0] == 0:
+			if action_[np.where(action_ != 0)][0] > 0:
+				T[0,:] = 0
 				border[-1, :] = belief[-1, :];
+				# print("T:\n" + str(np.round(T, 3)));
 			else:
-				T[-1,:] = 0;
+				T[-1,:] = 0
 				border[0, :] = belief[0, :];
-		else: # left and right
-			T = np.roll(T, action_[0], axis = 1)
-			if(action_[0] > 0):
+				# print("T:\n" + str(np.round(T, 3)));
+		else:
+			if action_[np.where(action_ != 0)][0] > 0:
 				T[:,0] = 0
 				border[:, -1] = belief[:, -1];
 			else:
-				T[:,-1] = 0
+				T[:, -1] = 0
 				border[:, 0] = belief[:, 0];
+
 
 		belief_ = T + belief * 0.1 + border;
 		

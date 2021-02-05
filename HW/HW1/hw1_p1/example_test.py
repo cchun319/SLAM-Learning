@@ -22,4 +22,5 @@ if __name__ == "__main__":
 	for i in range(len(actions)):
 		belief_ = filter.histogram_filter(cmap, belief_, actions[i], observations[i]);
 		ind = np.unravel_index(np.argmax(belief_, axis=None), belief_.shape)
-		print("iter: " + str(i) + " \nBAYES:" + str(ind)  + " PROB: "+ str(belief_[ind]) + " TRUE:" + str(belief_states[i]) + "\n\n");
+		robot_ind = ind[1], cmap.shape[0] - ind[0];
+		print("iter: " + str(i) + " \nBAYES:" + str(robot_ind)  + " PROB: "+ str(belief_[ind]) + " TRUE:" + str(belief_states[i]) + "\n\n");

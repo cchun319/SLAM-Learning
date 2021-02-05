@@ -24,28 +24,29 @@ class HistogramFilter(object):
 		
 		n, m = cmap.shape;
 		# print("belief:\n" + str(np.round(belief, 5)));
-		stay_ = np.eye(m, dtype = float) / 10;
 
 		T = np.copy(belief);
 		T *= 0.9;
-		if action[0] == 0: # up and down
-			T = np.roll(T, action[1], axis = 0)
-			if(action[1] > 0):
+		action_ = -action[1], action[0]
+		border = np.zeros_like(cmap, dtype = float)
+		if action_[0] == 0: # up and down
+			T = np.roll(T, action_[1], axis = 0)
+			if(action_[1] > 0):
 				T[0,:] = 0;
-				T[-1,:] += belief[-1,:];
+				border[-1, :] = belief[-1, :];
 			else:
 				T[-1,:] = 0;
-				T[0,:] += belief[0,:];
+				border[0, :] = belief[0, :];
 		else: # left and right
-			T = np.roll(T, action[0], axis = 1)
-			if(action[0] > 0):
+			T = np.roll(T, action_[0], axis = 1)
+			if(action_[0] > 0):
 				T[:,0] = 0
-				T[:,-1] += belief[:,-1];
+				border[:, -1] = belief[:, -1];
 			else:
 				T[:,-1] = 0
-				T[:,0] += belief[:,0];
+				border[:, 0] = belief[:, 0];
 
-		belief_ = T + belief @ stay_;
+		belief_ = T + belief * 0.1 + border;
 		
 		M = np.ones((n, m), dtype = float);
 		
@@ -56,6 +57,6 @@ class HistogramFilter(object):
 				
 		belief_ /= np.sum(belief_);	
 		
-		print("belief_:\n" + str(np.round(belief_, 3)));
+		# print("belief_:\n" + str(np.round(belief_, 3)));
 
 		return belief_;

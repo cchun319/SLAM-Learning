@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
 	#### Test your code here
 	filter = HistogramFilter();
-	belief_ = np.ones_like(cmap) / (cmap.shape[0] * cmap.shape[1]);
+	belief_ = np.ones_like(cmap, dtype = float) / (cmap.shape[0] * cmap.shape[1]);
 	
 
 	for i in range(len(actions)):

@@ -20,41 +20,42 @@ class HistogramFilter(object):
 		cmap = arr_0, actions = arr_1, observations = arr_2, true state = arr_3
 		'''
 		### Your Algorithm goes Below.
-		pb = np.round(belief, 3);
-		print("belief:\n" + str(pb));
-		# print("%.2f" % np.round(belief, 2))
+
+		
 		n, m = cmap.shape;
-		# print(str(n) + " and " + str(m));
-		# print("action:\n" + str(action));
-		# print("action[0]:\n" + str(action[0]));
-		# print("action[1]:\n" + str(action[1]));
-		belief_ = np.zeros_like(belief)
-		for i in range(n):
-			for j in range(m):
+		# print("belief:\n" + str(np.round(belief, 5)));
+		stay_ = np.eye(m, dtype = float) / 10;
 
-				nr = i + action[0];
-				nc = j + action[1];
-				nr = min(n - 1, nr)
-				nr = max(0, nr)
-				nc = min(m - 1, nc)
-				nc = max(0, nc)
-				belief_[nr][nc] += belief[i][j] * 0.9;
-				belief_[i][j] += belief[i][j] * 0.1;
-		norm = 0;
+		T = np.copy(belief);
+		T *= 0.9;
+		if action[0] == 0: # up and down
+			T = np.roll(T, action[1], axis = 0)
+			if(action[1] > 0):
+				T[0,:] = 0;
+				T[-1,:] += belief[-1,:];
+			else:
+				T[-1,:] = 0;
+				T[0,:] += belief[0,:];
+		else: # left and right
+			T = np.roll(T, action[0], axis = 1)
+			if(action[0] > 0):
+				T[:,0] = 0
+				T[:,-1] += belief[:,-1];
+			else:
+				T[:,-1] = 0
+				T[:,0] += belief[:,0];
+
+		belief_ = T + belief @ stay_;
 		
-		for i in range(n):
-			for j in range(m):
-				if(observation == cmap[i][j]):
-					belief_[i][j] *= 0.9;
-				else:
-					belief_[i][j] *= 0.1;
-				norm += belief_[i][j];
+		M = np.ones((n, m), dtype = float);
+		
+		M[cmap == observation] = 9
 
+		M /= 10;
+		belief_ *= M;
 				
-		belief_ /= norm;	
-
+		belief_ /= np.sum(belief_);	
 		
-		# print("belief_:\n" + str(belief_));
-		# print("observation:\n" + str(observation));
+		print("belief_:\n" + str(np.round(belief_, 3)));
 
 		return belief_;

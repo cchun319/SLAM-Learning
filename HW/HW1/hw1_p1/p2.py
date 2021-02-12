@@ -80,7 +80,7 @@ M_new = gamma_f @ Indicator / gamma_sum_col_full.reshape(2,1)
 print("M': \n" + str(M_new) + "\n")
 
 
-alpha_1 = alpha_0 * M[:,Y[0]].reshape(2,1)
+alpha_1 = gamma_f[:,0].reshape(2,1) * M[:,Y[0]].reshape(2,1)
 
 # print(alpha_1)
 beta = np.array([[1], [1]])

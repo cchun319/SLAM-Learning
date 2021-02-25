@@ -14,8 +14,8 @@ alpha = 200;
 beta = 0.5;
 
 def accToRPY(accelerationX, accelerationY, accelerationZ) :
-	pitch =  np.arctan2(accelerationX, np.sqrt(accelerationY*accelerationY + accelerationZ*accelerationZ));
-	roll =  np.arctan2(accelerationY, np.sqrt(accelerationX*accelerationX + accelerationZ*accelerationZ));
+	pitch =  np.arctan2(-accelerationX, np.sqrt(accelerationY*accelerationY + accelerationZ*accelerationZ));
+	roll =  np.arctan2(accelerationY, accelerationZ);
 	yaw =  np.arctan2(accelerationZ, np.sqrt(accelerationX*accelerationX + accelerationZ*accelerationZ));
 	return yaw, pitch, roll
 
@@ -70,7 +70,7 @@ def estimate_rot(data_num=1):
 	print(quaterions.shape);
 
 
-	yaw, pitch, roll = accToRPY(ax, ay, -az);
+	yaw, pitch, roll = accToRPY(-ax, -ay, az);
 	patch = np.zeros((3, 84));
 	quaterions = np.hstack((quaterions, patch))
 
@@ -79,9 +79,9 @@ def estimate_rot(data_num=1):
 	ax1.plot(x, ax, label = "ax")
 	ax1.plot(x, ay, label = "ay")
 	ax1.plot(x, az, label = "az")
-	ax2.plot(x, roll, label = "ax")
-	ax3.plot(x, pitch, label = "ay")
-	ax4.plot(x, yaw, label = "az")
+	ax2.plot(x, roll, label = "roll")
+	ax3.plot(x, pitch, label = "pitch")
+	ax4.plot(x, yaw, label = "yaw")
 	ax2.plot(x, quaterions[0,:], label = "viconx")
 	ax3.plot(x, quaterions[1,:], label = "vicony")
 	ax4.plot(x, quaterions[2,:], label = "viconz")
@@ -90,34 +90,38 @@ def estimate_rot(data_num=1):
 	ax3.legend()
 	ax4.legend()
 	ax1.set_title('acc')
-	ax2.set_title('yaw')
+	ax2.set_title('roll')
 	ax3.set_title('pitch')
-	ax4.set_title('roll')
+	ax4.set_title('yaw')
 	plt.show();
 
-	print(np.amin(gyro[0,:]));
-	print(np.amax(gyro[0,:]));
-	print(gyro)
-	gyro_dig = digitalToAnalog(gyro, 200.0, 370.0);
+	gyro_dig = digitalToAnalog(gyro, 280.0, 370.0);
 	gyro_accu = np.array([[roll[0]],[pitch[0]],[yaw[0]]]);
 	p_time = x[0];
 	for i in range(1,T):
-		new_gyro = gyro_accu[:,-1] + (x[i] - p_time) * gyro_dig[:,i];
+		new_gyro = gyro_accu[:,-1] + (x[i] - p_time) * gyro_dig[:,i].astype(float);
 		new_gyro = np.reshape(new_gyro, (3,1))
 		gyro_accu = np.hstack((gyro_accu, new_gyro))
 		p_time = x[i]
 
 	print(gyro_accu.shape)	
 	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-	ax1.plot(x, gyro_accu[0,:], label = "ax")
-	ax2.plot(x, gyro_accu[1,:], label = "ax")
-	ax3.plot(x, gyro_accu[2,:], label = "vicony")
+	ax1.plot(x, gyro_accu[0,:], label = "yaw")
+	ax2.plot(x, gyro_accu[2,:], label = "pitch")
+	ax3.plot(x, gyro_accu[1,:], label = "roll")
+	ax1.plot(x, quaterions[2,:], label = "true yaw")
+	ax2.plot(x, quaterions[1,:], label = "true pitch")
+	ax3.plot(x, quaterions[0,:], label = "true roll")
+	ax4.plot(x, gyro[0,:])
+	ax4.plot(x, gyro[2,:])
+	ax4.plot(x, gyro[1,:])
 	ax1.legend()
 	ax2.legend()
 	ax3.legend()
-	ax1.set_title('acc')
-	ax2.set_title('yaw')
-	ax3.set_title('pitch')
+	ax1.set_title('yaw')
+	ax2.set_title('pitch')
+	ax3.set_title('roll')
+	ax4.set_title('raw')
 	plt.show();
 	# your code goes here
 	

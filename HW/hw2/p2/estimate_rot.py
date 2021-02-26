@@ -11,8 +11,20 @@ import math
 #roll pitch and yaw using an unscented kalman filter
 
 def CholeskyMatrix(P_prev):
-	return None;
+	return np.linalg.cholesky(P_prev);
 
+def propagateState(X, W):
+	q_x = Quaternion(X[0,0], X[1:4, 0]);
+	Y = []
+	for i in range(6):
+		q_w = Quaternion(0, W[0:3, i]);
+		omega_k = X[4:7, 0] + W[3:6, i]
+		q_k = q_x.__mul__(q_w);
+		x_k = np.zeros((7, 1));
+		x_k[4:7, 0] = omega_k;
+		x_k[0,0] = q_k.scalar();
+		x_k[1,4] = q_k.vec();
+		Y = np.hstack(Y, x_k)
 
 def estimate_rot(data_num=1):
 	#load data
@@ -46,9 +58,9 @@ def estimate_rot(data_num=1):
 	P_prev = np.zeros((6,6))
 	Q = np.random.rand(6,6)
 	S = CholeskyMatrix(P_prev + Q)
-	W = 
+	W = S * np.sqrt(2 * 4)
 
-
+	X_propagate = propagateState(X, W)
 
 
 	# roll, pitch, yaw are numpy arrays of length T

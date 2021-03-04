@@ -17,5 +17,8 @@ for _ in range(100):
 	X.append(x_k)
 	y_k = math.sqrt(x_k ** 2) + np.random.normal(loc = 0.0, scale = math.sqrt(0.5), size=None)
 	Y.append(y_k)
-	
+
+
+for i in range(1:100):
+		
 print(Y);

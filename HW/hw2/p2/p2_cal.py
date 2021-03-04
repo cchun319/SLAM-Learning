@@ -90,7 +90,7 @@ ax3.set_title('pitch')
 ax4.set_title('yaw')
 plt.show();
 
-gyro_dig = digitalToAnalog(gyro, 280.0, 370.0);
+gyro_dig = digitalToAnalog(gyro, 200.0, 370.0);
 gyro_accu = np.array([[roll[0]],[pitch[0]],[yaw[0]]]);
 p_time = x[0];
 for i in range(1,T):

@@ -53,6 +53,10 @@ T = np.shape(imu['ts'])[1]
 ax = digitalToAnalog(accel[0, :], 33.0, 510.0);
 ay = digitalToAnalog(accel[1, :], 33.0, 497.0);
 az = digitalToAnalog(accel[2, :], 33.0, 510.0);
+
+gx = digitalToAnalog(gyro[1, :], 208.0, 373.7);
+gy = digitalToAnalog(gyro[2, :], 208.0, 375.7);
+gz = digitalToAnalog(gyro[0, :], 200.0, 370.1);
 		# accel_ana = accel;
 x = imu['ts'].T;
 
@@ -91,10 +95,10 @@ ax4.set_title('yaw')
 plt.show();
 
 gyro_dig = digitalToAnalog(gyro, 200.0, 370.0);
-gyro_accu = np.array([[roll[0]],[pitch[0]],[yaw[0]]]);
+gyro_accu = np.array([[0],[0],[0]]);
 p_time = x[0];
 for i in range(1,T):
-	new_gyro = gyro_accu[:,-1] + (x[i] - p_time) * gyro_dig[:,i].astype(float);
+	new_gyro = gyro_accu[:,-1] + (x[i] - p_time) * np.array([gz[i], gy[i], gx[i]]).astype(float);
 	new_gyro = np.reshape(new_gyro, (3,1))
 	gyro_accu = np.hstack((gyro_accu, new_gyro))
 	p_time = x[i]
@@ -102,8 +106,8 @@ for i in range(1,T):
 print(gyro_accu.shape)	
 fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
 ax1.plot(x, gyro_accu[0,:], label = "yaw")
-ax2.plot(x, gyro_accu[2,:], label = "pitch")
-ax3.plot(x, gyro_accu[1,:], label = "roll")
+ax2.plot(x, gyro_accu[1,:], label = "pitch")
+ax3.plot(x, gyro_accu[2,:], label = "roll")
 ax1.plot(x, quaterions[2,:], label = "true yaw")
 ax2.plot(x, quaterions[1,:], label = "true pitch")
 ax3.plot(x, quaterions[0,:], label = "true roll")

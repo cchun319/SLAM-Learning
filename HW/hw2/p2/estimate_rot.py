@@ -65,7 +65,7 @@ def getMeanQuaternion(q_cur, q_bar):
 	threshould = 0.01;
 	ct = 0;
 	e_bar = np.array([0,0,0])
-	while(LA.norm(e_bar) -  prev_e > threshould or ct < 50):
+	while(LA.norm(e_bar) -  prev_e > threshould and ct < 50):
 		q_inv = q.inv();
 		prev_e = LA.norm(e_bar);
 		# print("err: " + str(LA.norm(err_)))
@@ -195,8 +195,8 @@ def estimate_rot(data_num=1):
 	X = np.zeros((7, 1))
 	X[0, 0] = 1;
 	P_prev = np.eye(6,6)
-	Q = 0.01 * np.eye(6,6)
-	R = 0.01 * np.eye(6,6)
+	Q = 2 * np.eye(6,6)
+	R = 2 * np.eye(6,6)
 	t_prev = t[0];
 	for i in range(1, T):
 		if(bebug):
@@ -245,7 +245,7 @@ def estimate_rot(data_num=1):
 			print(str(P_kbar) + "\n");
 
 
-		Z_i = getMeasureEstimate(Y_i) # Yi
+		Z_i = getMeasureEstimate(Y_i)
 		if(bebug):
 			print("Z_i: \n" + str(Z_i.shape));
 			print(str(Z_i) + "\n");
@@ -264,7 +264,6 @@ def estimate_rot(data_num=1):
 			print("Z_actual: \n" + str(Z_actual.shape));
 			print(str(Z_actual.T) + "\n");
 
-		# Z_deiva = getWDeviation(Z_i, Z_kbar)
 		Z_deiva = Z_i - Z_kbar
 		if(bebug):
 			print("Z_deiva: \n" + str(Z_deiva.shape));

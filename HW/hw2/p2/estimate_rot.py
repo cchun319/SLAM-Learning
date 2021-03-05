@@ -16,6 +16,7 @@ def CholeskyMatrix(P_prev):
 
 def propagateState(X, W):
 	q_x = Quaternion(X[0,0], X[1:4, 0]);
+	q_x.normalize();
 	X_p = np.zeros((7, 12))
 	for i in range(W.shape[-1]):
 		q_w = Quaternion();
@@ -58,14 +59,15 @@ def getQtError(q, q_barinv): # q_bar is Quaternion instance, q is vector
 	return ret
 
 
-def getMeanQuaternion(q_cur):
-	q = Quaternion(1, [0,0,0]);
-	q_prev = Quaternion(-1, [-1,-1,-1]);
+def getMeanQuaternion(q_cur, q_bar):
+	q = Quaternion(q_bar[0], q_bar[1:4]);
+	prev_e = 10
 	threshould = 0.01;
 	ct = 0;
-	err_ = [q.scalar() - q_prev.scalar(), (q.vec() - q_prev.vec())[0], (q.vec() - q_prev.vec())[1], (q.vec() - q_prev.vec())[2]];
-	while(LA.norm(err_) > threshould or ct < 50):
+	e_bar = np.array([0,0,0])
+	while(LA.norm(e_bar) -  prev_e > threshould or ct < 50):
 		q_inv = q.inv();
+		prev_e = LA.norm(e_bar);
 		# print("err: " + str(LA.norm(err_)))
 		# print("qinv: " + str(q_inv))
 		E_i = np.zeros((3, 12));
@@ -79,31 +81,32 @@ def getMeanQuaternion(q_cur):
 
 		e_q = Quaternion();
 		e_q.from_axis_angle(e_bar)
-		q_prev = q;
 		q = e_q.__mul__(q);
 		q.normalize();
-		err_ = [q.scalar() - q_prev.scalar(), (q.vec() - q_prev.vec())[0], (q.vec() - q_prev.vec())[1], (q.vec() - q_prev.vec())[2]]
+
 		ct += 1;
 	
 	return q;
 
-def getMean(Y_i):
+def getMean(Y_i, X_q):
 	Y_mean = np.zeros((7,1));
 	Y_mean[4:7, 0] = getBaryMean(Y_i[4:7, :])
-	Y_mean_q = getMeanQuaternion(Y_i[0:4, :]);
+	Y_mean_q = getMeanQuaternion(Y_i[0:4, :], X_q);
 	Y_mean[0, 0] = Y_mean_q.scalar();
 	Y_mean[1:4, 0] = Y_mean_q.vec();
 	return Y_mean;
 
-def getWDeviation(Y, Y_i):
+def getWDeviation(Y, Y_bar):
+	# Y_i: Y_bar
+	# Y: sigma pta
 	W_d = np.zeros((6, 12));
-	q_bar = Quaternion(Y_i[0,0],Y_i[1:4, 0]);
+	q_bar = Quaternion(Y_bar[0,0],Y_bar[1:4, 0]);
 	q_barinv = q_bar.inv()
 	for i in range(Y.shape[-1]):
 		new_col = np.zeros((6, 1));
 		err_q = getQtError(Y[0:4, i], q_barinv);
-		new_col[0:3, 0] = err_q.axis_angle(); # the scalar part might be wrong
-		new_col[3:6, 0] = Y[4:7, i] - Y_i[4:7, 0];
+		new_col[0:3, 0] = err_q.axis_angle(); 
+		new_col[3:6, 0] = Y[4:7, i] - Y_bar[4:7, 0];
 		W_d[:, i] = new_col[:, 0];
 
 	return W_d;
@@ -224,16 +227,11 @@ def estimate_rot(data_num=1):
 			print(str(Y_i) + "\n");
 
 
-		Y_bar = getMean(Y_i)
+		Y_bar = getMean(Y_i, X[0:4, 0])
 		if(bebug):
 			print("Y_bar: \n" + str(Y_bar.shape) + "\n");
 			print(str(Y_bar) + "\n");
 
-
-		W_devia = getWDeviation(X_propagate, Y_bar);
-		if(bebug):
-			print("W_devia: \n" + str(W_devia.shape) + "\n");
-			print(str(W_devia) + "\n");
 
 		W_p_devia = getWDeviation(Y_i, Y_bar);
 		if(bebug):
@@ -241,13 +239,13 @@ def estimate_rot(data_num=1):
 			print(str(W_p_devia) + "\n");
 
 
-		P_kbar = W_devia @ W_devia.T / 12;
+		P_kbar = W_p_devia @ W_p_devia.T / 12;
 		if(bebug):
 			print("P_kbar: \n" + str(P_kbar.shape) + "\n");
 			print(str(P_kbar) + "\n");
 
 
-		Z_i = getMeasureEstimate(X_propagate)
+		Z_i = getMeasureEstimate(Y_i) # Yi
 		if(bebug):
 			print("Z_i: \n" + str(Z_i.shape));
 			print(str(Z_i) + "\n");
@@ -309,6 +307,7 @@ def estimate_rot(data_num=1):
 		kq.from_axis_angle(K_innno[0:3, 0]);
 
 		Y_bar[4:7, 0] += K_innno[3:6, 0];
+		
 		qua_y = Quaternion(Y_bar[0, 0], Y_bar[1:4, 0]);
 		qua_update = kq.__mul__(qua_y);
 		qua_update.normalize();

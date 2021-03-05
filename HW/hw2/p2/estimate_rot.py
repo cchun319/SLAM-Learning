@@ -18,12 +18,14 @@ def propagateState(X, W):
 	q_x = Quaternion(X[0,0], X[1:4, 0]);
 	X_p = np.zeros((7, 12))
 	for i in range(W.shape[-1]):
-		q_w = arrayToQuaternion(W[0:3, i]);
+		q_w = Quaternion();
+		q_w.from_axis_angle(W[0:3, i]);
 		omega_k = X[4:7, 0] + W[3:6, i]
-		q_k = q_w * q_x;
-		print("q_k: " + str(q_k))
-		print("q_x: " + str(q_x))
-		print("q_w: " + str(q_w))
+		q_k = q_w.__mul__(q_x);
+		q_k.normalize();
+		# print("q_k: " + str(q_k))
+		# print("q_x: " + str(q_x))
+		# print("q_w: " + str(q_w))
 
 		x_k = np.zeros((7, 1));
 		x_k[4:7, 0] = omega_k;
@@ -32,30 +34,18 @@ def propagateState(X, W):
 		X_p[:, i] = x_k[:, 0];
 	return X_p;
 
-def arrayToQuaternion(arr):
-	q_alpha = LA.norm(arr);
-	q_vev = np.sin(q_alpha / 2) * arr / q_alpha
-	q_vev = np.asarray(q_vev)
-	return Quaternion(math.cos(q_alpha / 2), q_vev);
-
 def processA(X_p, prev, timeStamp):
 	# Todo
 	delta_t = timeStamp - prev;
 	for i in range(X_p.shape[-1]):
-		q_ome = arrayToQuaternion(X_p[4:7, i] * delta_t);
+		q_ome = Quaternion();
+		q_ome.from_axis_angle(X_p[4:7, i] * delta_t);
 		q_cur = Quaternion(X_p[0,i], X_p[1:4, i]);
 		q_predict = q_ome.__mul__(q_cur);
+		q_predict.normalize();
 		X_p[0, i] = q_predict.scalar();
 		X_p[1:4, i] = q_predict.vec();
 	return X_p;
-
-def getSigmaPts(S):
-	W = np.zeros((6, 12))
-	a = np.sqrt(12);
-	for i in range(S.shape[0]):
-		W[:, 2*i] =  S[:,i];
-		W[:, 2*i + 1] = -S[:,i];
-	return W;
 
 def getBaryMean(B):
 	return np.mean(B, axis = 1)
@@ -63,7 +53,9 @@ def getBaryMean(B):
 def getQtError(q, q_barinv): # q_bar is Quaternion instance, q is vector 
 
 	q_i = Quaternion(q[0], q[1:4])
-	return q_i.__mul__(q_barinv)
+	ret = q_i.__mul__(q_barinv)
+	ret.normalize()
+	return ret
 
 
 def getMeanQuaternion(q_cur):
@@ -81,7 +73,6 @@ def getMeanQuaternion(q_cur):
 			# print("erQcur: " + str(q_cur[0:4, i]))
 			er = getQtError(q_cur[0:4, i], q_inv);
 			# print("erQ: " + str(er))
-			er.normalize();
 			E_i[:, i] = er.axis_angle();
 
 		e_bar = getBaryMean(E_i);
@@ -90,6 +81,7 @@ def getMeanQuaternion(q_cur):
 		e_q.from_axis_angle(e_bar)
 		q_prev = q;
 		q = e_q.__mul__(q);
+		q.normalize();
 		err_ = [q.scalar() - q_prev.scalar(), (q.vec() - q_prev.vec())[0], (q.vec() - q_prev.vec())[1], (q.vec() - q_prev.vec())[2]]
 		ct += 1;
 	
@@ -126,7 +118,7 @@ def getMeasureEstimate(X_propagate):
 	for i in range(X_propagate.shape[-1]):
 		z_i = np.zeros((6, 1))
 		z_i[0:3, 0] = X_propagate[4:7, i];
-		z_i[3:6, 0] = rotateVector(X_propagate[0:4, i], g_).axis_angle(); # might be wrong
+		z_i[3:6, 0] = rotateVector(X_propagate[0:4, i], g_).vec(); # might be wrong
 		Z[:, i] = z_i[:, 0]
 	return Z;
 
@@ -191,100 +183,127 @@ def estimate_rot(data_num=1):
 	quaterions = np.hstack((quaterions, patch))
 
 	yaw, pitch, roll = accToRPY(-ax, -ay, az);
+	bebug = False;
 
 	# your code goes here
 	roll_ = [0]
 	pitch_ = [0]
 	yaw_ = [0]
-	X = np.random.rand(7, 1)
-	P_prev = np.random.rand(6,6)
-	Q = 10 * np.eye(6,6)
-	R = 10 * np.eye(6,6)
+	X = np.zeros((7, 1))
+	X[0, 0] = 1;
+	P_prev = np.eye(6,6)
+	Q = 0.01 * np.eye(6,6)
+	R = 0.01 * np.eye(6,6)
 	t_prev = t[0];
-	for i in range(1, 2):
-		print("P_prev: \n" + str(P_prev) + "\n");
-		# print(str(X.T))
+	for i in range(1, T):
+		if(bebug):
+			print("P_prev: \n" + str(P_prev + Q));
+			print("state: \n" + str(X.T))
+		
 		t_cur = t[i];
 		S = CholeskyMatrix(np.sqrt(12) * (P_prev + Q))
-		print("S: \n" + str(S.shape) + "\n");
-		print(str(S) + "\n");
-		W = getSigmaPts(S) 
-		print("W: \n" + str(W.shape) + "\n");
-		print(str(W) + "\n");
+		if(bebug):
+			print("S: \n" + str(S.shape) + "\n");
+			print(str(S) + "\n");
+		
+		W = np.hstack((S, -S))
+		if(bebug):
+			print("W: \n" + str(W.shape) + "\n");
+			print(str(W) + "\n");
 
 
 		X_propagate = propagateState(X, W) # (X_(k+1))
-		print("X_propagate: \n" + str(X_propagate.shape) + "\n");
-		print(str(X_propagate) + "\n");
+		if(bebug):
+			print("X_propagate: \n" + str(X_propagate.shape) + "\n");
+			print(str(X_propagate) + "\n");
 
 
 		Y_i = processA(X_propagate, t_prev, t_cur);
-		print("Y_i: \n" + str(Y_i.shape) + "\n");
-		print(str(Y_i) + "\n");
+		if(bebug):
+			print("Y_i: \n" + str(Y_i.shape) + "\n");
+			print(str(Y_i) + "\n");
 
 
 		Y_bar = getMean(Y_i)
-		# print("Y_bar: \n" + str(Y_bar.shape) + "\n");
-		# print(str(Y_bar) + "\n");
+		if(bebug):
+			print("Y_bar: \n" + str(Y_bar.shape) + "\n");
+			print(str(Y_bar) + "\n");
 
 
-		W_devia = getWDeviation(Y_i, Y_bar);
-		# print("W_devia: \n" + str(W_devia.shape) + "\n");
-		# print(str(W_devia) + "\n");
+		W_devia = getWDeviation(X_propagate, Y_bar);
+		if(bebug):
+			print("W_devia: \n" + str(W_devia.shape) + "\n");
+			print(str(W_devia) + "\n");
+
+		W_p_devia = getWDeviation(Y_i, Y_bar);
+		if(bebug):
+			print("W_p_devia: \n" + str(W_p_devia.shape) + "\n");
+			print(str(W_p_devia) + "\n");
 
 
 		P_kbar = W_devia @ W_devia.T / 12;
-		# print("P_kbar: \n" + str(P_kbar.shape) + "\n");
-		# print(str(P_kbar) + "\n");
+		if(bebug):
+			print("P_kbar: \n" + str(P_kbar.shape) + "\n");
+			print(str(P_kbar) + "\n");
 
 
 		Z_i = getMeasureEstimate(X_propagate)
-		# print("Z_i: \n" + str(Z_i.shape) + "\n");
-		# print(str(Z_i) + "\n");
+		if(bebug):
+			print("Z_i: \n" + str(Z_i.shape));
+			print(str(Z_i) + "\n");
 
 
 		Z_kbar = getBaryMean(Z_i);
 		Z_kbar = Z_kbar.reshape((6,1))
-		# print("Z_kbar: \n" + str(Z_kbar.shape) + "\n");
-		# print(str(Z_kbar) + "\n");
+		if(bebug):
+			print("Z_kbar: \n" + str(Z_kbar.shape))
+			print(str(Z_kbar.T) + "\n");
 
 		Z_actual = np.zeros((6, 1))
-		Z_actual[0:3, 0] = np.array([gx[i], gy[i], gz[i]]).T
+		Z_actual[0:3, 0] = np.array([gx[i], gy[i], gz[i]])
 		Z_actual[3:6, 0] = np.array([ax[i], ay[i], az[i]]) # TODO X(q, ome) ? 
-		# print("Z_actual: \n" + str(Z_actual.shape) + "\n");
-		# print(str(Z_actual) + "\n");
+		if(bebug):
+			print("Z_actual: \n" + str(Z_actual.shape));
+			print(str(Z_actual.T) + "\n");
 
 		# Z_deiva = getWDeviation(Z_i, Z_kbar)
 		Z_deiva = Z_i - Z_kbar
-		# print("Z_deiva: \n" + str(Z_deiva.shape) + "\n");
-		# print(str(Z_deiva) + "\n");
+		if(bebug):
+			print("Z_deiva: \n" + str(Z_deiva.shape));
+			print(str(Z_deiva) + "\n");
 
 
 		P_zz = Z_deiva @ Z_deiva.T / 12;
-		# print("P_zz: \n" + str(P_zz.shape) + "\n");
-		# print(str(P_zz) + "\n");
+		if(bebug):
+			print("P_zz: \n" + str(P_zz.shape) + "\n");
+			print(str(P_zz) + "\n");
 
 		innovation = Z_actual - Z_kbar;
-		# print("innovation: \n" + str(innovation.shape) + "\n");
-		# print(str(innovation) + "\n");
+		if(bebug):
+			print("innovation: \n" + str(innovation.shape) + "\n");
+			print(str(innovation) + "\n");
 
 		P_vv = P_zz + R;
-		# print("P_vv: \n" + str(P_vv.shape) + "\n");
-		# print(str(P_vv) + "\n");
+		if(bebug):
+			print("P_vv: \n" + str(P_vv.shape) + "\n");
+			print(str(P_vv) + "\n");
 
 
-		P_xz = W_devia @ Z_deiva.T / 12;
-		# print("P_xz: \n" + str(P_xz.shape) + "\n");
-		# print(str(P_xz) + "\n");
+		P_xz = W_p_devia @ Z_deiva.T / 12;
+		if(bebug):
+			print("P_xz: \n" + str(P_xz.shape) + "\n");
+			print(str(P_xz) + "\n");
 
 
-		K_k = P_xz @ LA.pinv(P_vv)
-		# print("K_k: \n" + str(K_k.shape) + "\n");
-		# print(str(K_k) + "\n");
+		K_k = P_xz @ LA.inv(P_vv)
+		if(bebug):
+			print("K_k: \n" + str(K_k.shape) + "\n");
+			print(str(K_k) + "\n");
 
-
+		# innovation = np.zeros((6, 1))
 		K_innno = K_k @ innovation;
-		# print("K_innno: \n" + str(K_innno.shape) + "\n");
+		if(bebug):
+			print("K_innno: \n" + str(K_innno.shape) + "\n");
 		
 		kq = Quaternion();
 		kq.from_axis_angle(K_innno[0:3, 0]);
@@ -292,6 +311,7 @@ def estimate_rot(data_num=1):
 		Y_bar[4:7, 0] += K_innno[3:6, 0];
 		qua_y = Quaternion(Y_bar[0, 0], Y_bar[1:4, 0]);
 		qua_update = kq.__mul__(qua_y);
+		qua_update.normalize();
 		Y_bar[0, 0] = qua_update.scalar();
 		Y_bar[1:4, 0] = qua_update.vec();
 		X_k = Y_bar

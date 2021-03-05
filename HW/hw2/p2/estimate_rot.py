@@ -18,9 +18,9 @@ def propagateState(X, W):
 	q_x = Quaternion(X[0,0], X[1:4, 0]);
 	X_p = np.zeros((7, 12))
 	for i in range(W.shape[-1]):
-		q_w = Quaternion(0, W[0:3, i]);
+		q_w = arrayToQuaternion(W[0:3, i]);
 		omega_k = X[4:7, 0] + W[3:6, i]
-		q_k = q_x.__mul__(q_w);
+		q_k = q_w.__mul__(q_x);
 		# print("q_k: " + str(q_k))
 		# print("q_x: " + str(q_x))
 		# print("q_w: " + str(q_w))
@@ -32,14 +32,19 @@ def propagateState(X, W):
 		X_p[:, i] = x_k[:, 0];
 	return X_p;
 
+def arrayToQuaternion(arr):
+	q_alpha = LA.norm(arr);
+	q_vev = np.sin(q_alpha / 2) * arr / q_alpha
+	q_vev = np.asarray(q_vev)
+	return Quaternion(math.cos(q_alpha / 2), q_vev);
+
 def processA(X_p, prev, timeStamp):
 	# Todo
 	delta_t = timeStamp - prev;
 	for i in range(X_p.shape[-1]):
-		q_ome = Quaternion();
-		q_ome.from_axis_angle(X_p[4:7, i] * delta_t); # alpha_delta_t
+		q_ome = arrayToQuaternion(X_p[4:7, i] * delta_t);
 		q_cur = Quaternion(X_p[0,i], X_p[1:4, i]);
-		q_predict = q_cur.__mul__(q_ome);
+		q_predict = q_ome.__mul__(q_cur);
 		X_p[0, i] = q_predict.scalar();
 		X_p[1:4, i] = q_predict.vec();
 	return X_p;
@@ -67,9 +72,9 @@ def getMeanQuaternion(q_cur):
 	threshould = 0.01;
 	ct = 0;
 	err_ = [q.scalar() - q_prev.scalar(), (q.vec() - q_prev.vec())[0], (q.vec() - q_prev.vec())[1], (q.vec() - q_prev.vec())[2]];
-	while(LA.norm(err_) > threshould or ct < 100):
+	while(LA.norm(err_) > threshould or ct < 50):
 		q_inv = q.inv();
-		# print("err: " + str(err_))
+		# print("err: " + str(LA.norm(err_)))
 		# print("qinv: " + str(q_inv))
 		E_i = np.zeros((3, 12));
 		for i in range(q_cur.shape[-1]):
@@ -113,7 +118,7 @@ def getWDeviation(W, Y_i):
 
 def rotateVector(q, g):
 	q_i = Quaternion(q[0], q[1:4]);
-	return q_i.inv().__mul__(g).__mul__(q_i);
+	return q_i.inv()*g*q_i;
 
 def getMeasureEstimate(X_propagate):
 	Z = np.zeros((6,12));
@@ -121,12 +126,11 @@ def getMeasureEstimate(X_propagate):
 	for i in range(X_propagate.shape[-1]):
 		z_i = np.zeros((6, 1))
 		z_i[0:3, 0] = X_propagate[4:7, i];
-		z_i[3:6, 0] = rotateVector(X_propagate[0:4, i], g_).vec(); # might be wrong
+		z_i[3:6, 0] = rotateVector(X_propagate[0:4, i], g_).axis_angle(); # might be wrong
 		Z[:, i] = z_i[:, 0]
 	return Z;
 
 def digitalToAnalog(raw, alpha_, beta_):
-
 	ret = (raw - beta_) * 3330 / (1023 * alpha_)
 	return ret;
 
@@ -183,32 +187,35 @@ def estimate_rot(data_num=1):
 	quaterions = np.asarray(quaterions);
 	quaterions = quaterions.T;
 
+	patch = np.zeros((3, 84));
+	quaterions = np.hstack((quaterions, patch))
+
 	yaw, pitch, roll = accToRPY(-ax, -ay, az);
 
-	gyro_dig = digitalToAnalog(gyro, 280.0, 370.0);
-
 	# your code goes here
-	roll_ = []
-	pitch_ = []
-	yaw_ = []
+	roll_ = [0]
+	pitch_ = [0]
+	yaw_ = [0]
 	X = np.random.rand(7, 1)
 	P_prev = np.random.rand(6,6)
 	Q = 10 * np.eye(6,6)
 	R = 10 * np.eye(6,6)
 	t_prev = t[0];
-	for i in range(1, T):
+	for i in range(1, 3):
 		# print("P_prev: \n" + str(P_prev + Q) + "\n");
 		print(str(X.T))
 		t_cur = t[i];
 		S = CholeskyMatrix(np.sqrt(12) * (P_prev + Q)).T
+		print("S: \n" + str(S.shape) + "\n");
+		print(str(S) + "\n");
 		W = getSigmaPts(S) 
-		# print("W: \n" + str(W.shape) + "\n");
-		# print(str(W) + "\n");
+		print("W: \n" + str(W.shape) + "\n");
+		print(str(W) + "\n");
 
 
 		X_propagate = propagateState(X, W) # (X_(k+1))
-		# print("X_propagate: \n" + str(X_propagate.shape) + "\n");
-		# print(str(X_propagate) + "\n");
+		print("X_propagate: \n" + str(X_propagate.shape) + "\n");
+		print(str(X_propagate) + "\n");
 
 
 		Y_i = processA(X_propagate, t_prev, t_cur);
@@ -241,9 +248,6 @@ def estimate_rot(data_num=1):
 		# print("Z_kbar: \n" + str(Z_kbar.shape) + "\n");
 		# print(str(Z_kbar) + "\n");
 
-
-		# quaterion_actual = Quaternion();
-		# quaterion_actual.from_axis_angle([yaw[i], pitch[i], roll[i]]);
 		Z_actual = np.zeros((6, 1))
 		Z_actual[0:3, 0] = np.array([gx[i], gy[i], gz[i]]).T
 		Z_actual[3:6, 0] = np.array([ax[i], ay[i], az[i]]) # TODO X(q, ome) ? 
@@ -306,7 +310,7 @@ def estimate_rot(data_num=1):
 	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
 	ax1.plot(t, yaw_, label = "yaw")
 	ax2.plot(t, pitch_, label = "pitch")
-	ax3.plot(t, row_, label = "roll")
+	ax3.plot(t, roll_, label = "roll")
 	ax1.plot(t, quaterions[2,:], label = "true yaw")
 	ax2.plot(t, quaterions[1,:], label = "true pitch")
 	ax3.plot(t, quaterions[0,:], label = "true roll")

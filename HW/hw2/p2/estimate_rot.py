@@ -20,10 +20,10 @@ def propagateState(X, W):
 	for i in range(W.shape[-1]):
 		q_w = arrayToQuaternion(W[0:3, i]);
 		omega_k = X[4:7, 0] + W[3:6, i]
-		q_k = q_w.__mul__(q_x);
-		# print("q_k: " + str(q_k))
-		# print("q_x: " + str(q_x))
-		# print("q_w: " + str(q_w))
+		q_k = q_w * q_x;
+		print("q_k: " + str(q_k))
+		print("q_x: " + str(q_x))
+		print("q_w: " + str(q_w))
 
 		x_k = np.zeros((7, 1));
 		x_k[4:7, 0] = omega_k;
@@ -103,17 +103,17 @@ def getMean(Y_i):
 	Y_mean[1:4, 0] = Y_mean_q.vec();
 	return Y_mean;
 
-def getWDeviation(W, Y_i):
+def getWDeviation(Y, Y_i):
 	W_d = np.zeros((6, 12));
 	q_bar = Quaternion(Y_i[0,0],Y_i[1:4, 0]);
 	q_barinv = q_bar.inv()
-	for i in range(W.shape[-1]):
+	for i in range(Y.shape[-1]):
 		new_col = np.zeros((6, 1));
-		err_q = getQtError([0, W[0, i], W[1, i], W[2, i]], q_barinv);
-		err_q.normalize()
+		err_q = getQtError(Y[0:4, i], q_barinv);
 		new_col[0:3, 0] = err_q.axis_angle(); # the scalar part might be wrong
-		new_col[3:6, 0] = W[3: 6, i] - Y_i[4:7, 0];
+		new_col[3:6, 0] = Y[4:7, i] - Y_i[4:7, 0];
 		W_d[:, i] = new_col[:, 0];
+
 	return W_d;
 
 def rotateVector(q, g):
@@ -201,11 +201,11 @@ def estimate_rot(data_num=1):
 	Q = 10 * np.eye(6,6)
 	R = 10 * np.eye(6,6)
 	t_prev = t[0];
-	for i in range(1, 3):
-		# print("P_prev: \n" + str(P_prev + Q) + "\n");
-		print(str(X.T))
+	for i in range(1, 2):
+		print("P_prev: \n" + str(P_prev) + "\n");
+		# print(str(X.T))
 		t_cur = t[i];
-		S = CholeskyMatrix(np.sqrt(12) * (P_prev + Q)).T
+		S = CholeskyMatrix(np.sqrt(12) * (P_prev + Q))
 		print("S: \n" + str(S.shape) + "\n");
 		print(str(S) + "\n");
 		W = getSigmaPts(S) 
@@ -219,8 +219,8 @@ def estimate_rot(data_num=1):
 
 
 		Y_i = processA(X_propagate, t_prev, t_cur);
-		# print("Y_i: \n" + str(Y_i.shape) + "\n");
-		# print(str(Y_i) + "\n");
+		print("Y_i: \n" + str(Y_i.shape) + "\n");
+		print(str(Y_i) + "\n");
 
 
 		Y_bar = getMean(Y_i)
@@ -228,7 +228,7 @@ def estimate_rot(data_num=1):
 		# print(str(Y_bar) + "\n");
 
 
-		W_devia = getWDeviation(W, Y_bar);
+		W_devia = getWDeviation(Y_i, Y_bar);
 		# print("W_devia: \n" + str(W_devia.shape) + "\n");
 		# print(str(W_devia) + "\n");
 

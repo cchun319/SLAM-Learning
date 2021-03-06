@@ -50,13 +50,14 @@ accel = imu['vals'][0:3,:]
 gyro = imu['vals'][3:6,:]
 T = np.shape(imu['ts'])[1]
 
-ax = digitalToAnalog(accel[0, :], 33.0, 510.0);
-ay = digitalToAnalog(accel[1, :], 33.0, 497.0);
-az = digitalToAnalog(accel[2, :], 33.0, 510.0);
+ax = digitalToAnalog(accel[0, :], 32.5, 510.0);
+ay = digitalToAnalog(accel[1, :], 32.5, 497.0);
+az = digitalToAnalog(accel[2, :], 31.5, 510.0);
 
 gx = digitalToAnalog(gyro[1, :], 208.0, 373.7);
 gy = digitalToAnalog(gyro[2, :], 208.0, 375.7);
 gz = digitalToAnalog(gyro[0, :], 200.0, 370.1);
+print(az)
 		# accel_ana = accel;
 x = imu['ts'].T;
 
@@ -70,7 +71,7 @@ quaterions = quaterions.T;
 
 
 yaw, pitch, roll = accToRPY(-ax, -ay, az);
-patch = np.zeros((3, 84));
+patch = np.zeros((3, T - quaterions.shape[1]));
 quaterions = np.hstack((quaterions, patch))
 
 fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)

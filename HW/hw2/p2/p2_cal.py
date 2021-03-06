@@ -51,13 +51,15 @@ gyro = imu['vals'][3:6,:]
 T = np.shape(imu['ts'])[1]
 
 ax = digitalToAnalog(accel[0, :], 32.5, 510.0);
-ay = digitalToAnalog(accel[1, :], 32.5, 497.0);
-az = digitalToAnalog(accel[2, :], 31.5, 510.0);
+ay = digitalToAnalog(accel[1, :], 32.5, 498.0);
+az = digitalToAnalog(accel[2, :], 29.5, 516.0);
 
-gx = digitalToAnalog(gyro[1, :], 208.0, 373.7);
-gy = digitalToAnalog(gyro[2, :], 208.0, 375.7);
-gz = digitalToAnalog(gyro[0, :], 200.0, 370.1);
+gx = digitalToAnalog(gyro[1, :], 210.0, 373.7);
+gy = digitalToAnalog(gyro[2, :], 210.0, 375.7);
+gz = digitalToAnalog(gyro[0, :], 210.0, 370.1);
 print(az)
+print(ay)
+print(ax)
 		# accel_ana = accel;
 x = imu['ts'].T;
 
@@ -76,9 +78,9 @@ quaterions = np.hstack((quaterions, patch))
 
 fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
 fig.suptitle('Sharing x per column, y per row')
-ax1.plot(x, ax, label = "ax")
-ax1.plot(x, ay, label = "ay")
-ax1.plot(x, az, label = "az")
+ax1.plot(x, accel[0, :], label = "ax")
+ax1.plot(x, accel[1, :], label = "ay")
+ax1.plot(x, accel[2, :], label = "az")
 ax2.plot(x, roll, label = "roll")
 ax3.plot(x, pitch, label = "pitch")
 ax4.plot(x, yaw, label = "yaw")

@@ -4,6 +4,7 @@ from quaternion import Quaternion
 import matplotlib.pyplot as plt
 import math
 from numpy import linalg as LA
+import os
 
 #data files are numbered on the server.
 #for exmaple imuRaw1.mat, imuRaw2.mat and so on.
@@ -26,16 +27,13 @@ def propagateState(X, W):
 		# print("q_k: " + str(q_k))
 		# print("q_x: " + str(q_x))
 		# print("q_w: " + str(q_w))
-
-		x_k = np.zeros((7, 1));
-		x_k[0:4, 0] = q_k.q
-		x_k[4:7, 0] = X[4:7, 0] + W[3:6, i];
-		X_p[:, i] = x_k[:, 0];
+		X_p[0:4, i] = q_k.q
+		X_p[4:7, i] = X[4:7, 0] + W[3:6, i];
 	return X_p;
 
 def processA(X_p, prev, timeStamp):
 	# Todo
-	delta_t = timeStamp - prev;
+	delta_t = (timeStamp - prev) / 1000.0;
 	for i in range(X_p.shape[-1]):
 		q_ome = Quaternion();
 		q_ome.from_axis_angle(X_p[4:7, i] * delta_t);
@@ -112,8 +110,6 @@ def getMeasureEstimate(Y_i):
 	for i in range(Y_i.shape[-1]):
 		z_i = np.zeros((6, 1))
 		z_i[3:6, 0] = Y_i[4:7, i];
-		# print(z_i[3:6, 0])
-		# print(Y_i[4:7, i])
 		z_i[0:3, 0] = rotateVector(Y_i[0:4, i], g_).vec(); # might be wrong
 		Z[:, i] = z_i[:, 0]
 
@@ -152,21 +148,21 @@ def isRotationMatrix(R) :
 
 def estimate_rot(data_num=1):
 	#load data
-	imu = io.loadmat('imu/imuRaw'+str(data_num)+'.mat')
-	vicon = io.loadmat('vicon/viconRot'+str(data_num)+'.mat')
+	imu = io.loadmat(os.path.join(os.path.dirname(__file__), "imu/imuRaw" + str(data_num) + ".mat"))
 	accel = imu['vals'][0:3,:]
 	gyro = imu['vals'][3:6,:]
 	T = np.shape(imu['ts'])[1]
 
-	gx = digitalToAnalog(gyro[1, :], 208.0, 373.7);
-	gy = digitalToAnalog(gyro[2, :], 208.0, 375.7);
-	gz = digitalToAnalog(gyro[0, :], 200.0, 370.1);
+	gx = digitalToAnalog(gyro[1, :], 208.0, 373.7); # 208
+	gy = digitalToAnalog(gyro[2, :], 208.0, 375.7); # 208
+	gz = digitalToAnalog(gyro[0, :], 200.0, 370.1); # 200
 
 	ax = digitalToAnalog(accel[0, :], 32.5, 510.0);
-	ay = digitalToAnalog(accel[1, :], 32.5, 497.0);
-	az = digitalToAnalog(accel[2, :], 31.5, 510.0);
+	ay = digitalToAnalog(accel[1, :], 32.5, 498.0);
+	az = digitalToAnalog(accel[2, :], 29.5, 516.0);
 
 	t = imu['ts'].T;
+	vicon = io.loadmat('vicon/viconRot'+str(data_num)+'.mat')
 
 	quaterions = [];
 	for i in range(vicon['rots'].shape[-1]):
@@ -176,7 +172,7 @@ def estimate_rot(data_num=1):
 	quaterions = np.asarray(quaterions);
 	quaterions = quaterions.T;
 
-	patch = np.zeros((3, 84));
+	patch = np.zeros((3, T - quaterions.shape[1]));
 	quaterions = np.hstack((quaterions, patch))
 
 	yaw, pitch, roll = accToRPY(-ax, -ay, az);
@@ -189,27 +185,31 @@ def estimate_rot(data_num=1):
 	ax_p = [0]
 	ay_p = [0]
 	az_p = [0]
+	ox = [0]
+	oy = [0]
+	oz = [0]
+	p_ome = []
+	p_ori = []
 	X = np.zeros((7, 1))
 	X[0, 0] = 1;
 	P_prev = np.eye(6,6)
-	Q = 1e-1 * np.array([1, 1, 1, 1, 1, 1]).T * np.eye(6,6)
-	R = 1e1 * np.array([1, 1, 1, 1, 1, 1]).T * np.eye(6,6)
-	print("Q: \n" + str(Q))
+	Q = np.diag([0.05, 0.05, 0.05, 0.85, 0.85, 0.85]).astype(float) # [0.05, 0.05, 0.05, 0.8, 0.8, 0.8]
+	R = 7 * np.diag([1, 1, 1, 50, 50, 50]).astype(float) # 5 * np.diag([1, 1 , 1, 15, 15, 15])
+	# print("Q: \n" + str(Q))
 
 	t_prev = t[0];
 	for i in range(1, T):
 		t_cur = t[i];
 
-		if(i % 200 == 0):
-			print("Trace: \n" + str(np.trace(P_prev + Q * (t_cur - t_prev))));
-
+		# if(i % 200 == 0):
+		# 	print("Trace: \n" + str(np.trace(P_prev + Q * (t_cur - t_prev))));
 
 		if(bebug):
-			print("P_prev: \n" + str(P_prev + Q * (t_cur - t_prev)));
+			print("P_prev: \n" + str(P_prev + Q));
 			print("state: \n" + str(X.T))
 			input();
 		
-		S = CholeskyMatrix(np.sqrt(6) * (P_prev + Q * (t_cur - t_prev)))
+		S = CholeskyMatrix(np.sqrt(6) * (P_prev + Q))
 		if(bebug):
 			print("S: \n" + str(S.shape) + "\n");
 			print(str(S) + "\n");
@@ -264,13 +264,11 @@ def estimate_rot(data_num=1):
 			print(str(Z_kbar.T) + "\n");
 			input();
 
-		ax_p.append(Z_kbar[3,0])
-		ay_p.append(Z_kbar[4,0])
-		az_p.append(Z_kbar[5,0])
+		
 
 		Z_actual = np.zeros((6, 1))
-		Z_actual[3:6, 0] = np.array([gx[i], gy[i], gz[i]])
 		Z_actual[0:3, 0] = np.array([ax[i], ay[i], az[i]])
+		Z_actual[3:6, 0] = np.array([gx[i], gy[i], gz[i]])
 		if(bebug):
 			print("Z_actual: \n" + str(Z_actual.shape));
 			print(str(Z_actual.T) + "\n");
@@ -325,24 +323,41 @@ def estimate_rot(data_num=1):
 		Y_bar[4:7, 0] += K_innno[0:3, 0];
 		
 		qua_y = Quaternion(Y_bar[0, 0], Y_bar[1:4, 0]);
-		qua_update = kq * qua_y;
-		qua_update.normalize();
-		Y_bar[0:4, 0] = qua_update.q;
+		qua_y = kq * qua_y;
+		qua_y.normalize();
+		Y_bar[0:4, 0] = qua_y.q;
 		X_k = Y_bar
 
 		P_k = P_kbar - K_k @ P_vv @ K_k.T
 
 		P_prev = P_k
+		P_k_dia = np.diag(P_k)
+		qua_y_P_k = Quaternion(P_k_dia[0], P_k_dia[1:4])
 		X = X_k
 		t_prev = t_cur;
 
-		rpy = qua_update.euler_angles()
+		rpy = qua_y.euler_angles()
 		roll_.append(-rpy[0])
 		pitch_.append(-rpy[1])
 		yaw_.append(rpy[2])
+		ax_p.append(Z_kbar[0,0])
+		ay_p.append(Z_kbar[1,0])
+		az_p.append(Z_kbar[2,0])
+		ox.append(-Y_bar[4,0])
+		oy.append(-Y_bar[5,0])
+		oz.append(Y_bar[6,0])
+		p_ori.append(qua_y_P_k.euler_angles());
+		p_ome.append(P_k_dia[3:6]);
+
+
+	p_ori = np.asarray(p_ori);
+	p_ome = np.asarray(p_ome);
+	p_ori = p_ori.T
+	p_ome = p_ome.T
 
 
 	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+	fig.suptitle('filtered orientation')
 	ax1.plot(t, yaw_, label = "yaw")
 	ax2.plot(t, pitch_, label = "pitch")
 	ax3.plot(t, roll_, label = "roll")
@@ -358,20 +373,53 @@ def estimate_rot(data_num=1):
 	plt.show();
 
 	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-	fig.suptitle('Sharing x per column, y per row')
+	fig.suptitle('filtered gravitational direction')
 	ax1.plot(t, ax, label = "ax")
 	ax2.plot(t, ay, label = "ay")
 	ax3.plot(t, az, label = "az")
-	ax1.plot(t, ax_p, label = "roll")
-	ax2.plot(t, ay_p, label = "pitch")
-	ax3.plot(t, az_p, label = "yaw")
+	ax1.plot(t, ax_p, label = "ax_Z")
+	ax2.plot(t, ay_p, label = "ay_Z")
+	ax3.plot(t, az_p, label = "az_Z")
 	ax1.legend()
 	ax2.legend()
 	ax3.legend()
-	ax1.set_title('acc')
-	ax2.set_title('roll')
-	ax3.set_title('pitch')
+	ax1.set_title('ax')
+	ax2.set_title('ay')
+	ax3.set_title('az')
 	plt.show();
+
+	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+	fig.suptitle('filtered angular velocity')
+	ax1.plot(t, ox, label = "ox")
+	ax2.plot(t, oy, label = "oy")
+	ax3.plot(t, oz, label = "oz")
+	ax1.plot(t, gx, label = "true")
+	ax2.plot(t, gy, label = "true")
+	ax3.plot(t, gz, label = "true")
+	ax1.legend()
+	ax2.legend()
+	ax3.legend()
+	ax1.set_title('ome_x')
+	ax2.set_title('ome_y')
+	ax3.set_title('ome_z')
+	plt.show();
+
+	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2,2)
+	fig.suptitle('filtered angular velocity')
+	ax1.plot(t[:-1], p_ori[0,:], label = "ox")
+	ax2.plot(t[:-1], p_ori[1,:], label = "oy")
+	ax3.plot(t[:-1], p_ori[2,:], label = "oz")
+	ax1.plot(t[:-1], p_ome[0,:], label = "true")
+	ax2.plot(t[:-1], p_ome[0,:], label = "true")
+	ax3.plot(t[:-1], p_ome[0,:], label = "true")
+	ax1.legend()
+	ax2.legend()
+	ax3.legend()
+	ax1.set_title('ome_x')
+	ax2.set_title('ome_y')
+	ax3.set_title('ome_z')
+	plt.show();
+
 	# roll, pitch, yaw are numpy arrays of length T
 	return roll_, pitch_, yaw_
 

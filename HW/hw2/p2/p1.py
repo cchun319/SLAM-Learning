@@ -51,8 +51,7 @@ for i in range(100):
 	#  [0, 0]
 
 	K = predict_cov @ C.T @ np.linalg.pinv(C @ predict_cov @ C.T + Q);
-	print(C.shape)
-	print(predict_state.shape)
+
 	cov_ = (np.eye(2,2) - K @ C) @ predict_cov; 
 	state_[0,0] = predict_state[0,0] + K[0,0] * (Y[i] - np.sqrt(predict_state[0, 0] ** 2 + 1))
 	state_[1,0] = predict_state[1,0]

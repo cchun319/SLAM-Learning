@@ -33,7 +33,7 @@ def propagateState(X, W):
 
 def processA(X_p, prev, timeStamp):
 	# Todo
-	delta_t = (timeStamp - prev) / 1000.0;
+	delta_t = (timeStamp - prev);
 	for i in range(X_p.shape[-1]):
 		q_ome = Quaternion();
 		q_ome.from_axis_angle(X_p[4:7, i] * delta_t);
@@ -193,8 +193,9 @@ def estimate_rot(data_num=1):
 	X = np.zeros((7, 1))
 	X[0, 0] = 1;
 	P_prev = np.eye(6,6)
-	Q = np.diag([0.05, 0.05, 0.05, 0.85, 0.85, 0.85]).astype(float) # [0.05, 0.05, 0.05, 0.8, 0.8, 0.8]
-	R = 7 * np.diag([1, 1, 1, 50, 50, 50]).astype(float) # 5 * np.diag([1, 1 , 1, 15, 15, 15])
+	# Q = np.diag([0.05, 0.05, 0.05, 0.85, 0.85, 0.85]).astype(float) # [0.05, 0.05, 0.05, 0.8, 0.8, 0.8]
+	Q = np.diag([15, 15, 15, 15, 15, 15]).astype(float)
+	R = np.diag([5, 5, 5, 50, 50, 50]).astype(float) # 5 * np.diag([1, 1 , 1, 15, 15, 15])
 	# print("Q: \n" + str(Q))
 
 	t_prev = t[0];
@@ -346,8 +347,8 @@ def estimate_rot(data_num=1):
 		ox.append(-Y_bar[4,0])
 		oy.append(-Y_bar[5,0])
 		oz.append(Y_bar[6,0])
-		p_ori.append(qua_y_P_k.euler_angles());
-		p_ome.append(P_k_dia[3:6]);
+		# p_ori.append(qua_y_P_k.euler_angles());
+		# p_ome.append(P_k_dia[3:6]);
 
 
 	p_ori = np.asarray(p_ori);

@@ -177,7 +177,7 @@ def estimate_rot(data_num=1):
 
 	yaw, pitch, roll = accToRPY(-ax, -ay, az);
 	bebug = False;
-
+	cov_ = [];
 	# your code goes here
 	roll_ = [0]
 	pitch_ = [0]
@@ -193,11 +193,11 @@ def estimate_rot(data_num=1):
 	X = np.zeros((7, 1))
 	X[0, 0] = 1;
 	P_prev = np.eye(6,6)
-	# Q = np.diag([0.05, 0.05, 0.05, 0.85, 0.85, 0.85]).astype(float) # [0.05, 0.05, 0.05, 0.8, 0.8, 0.8]
-	Q = np.diag([15, 15, 15, 15, 15, 15]).astype(float)
-	R = np.diag([5, 5, 5, 50, 50, 50]).astype(float) # 5 * np.diag([1, 1 , 1, 15, 15, 15])
+	Q = np.diag([0.05, 0.05, 0.05, 0.85, 0.85, 0.85]).astype(float) # [0.05, 0.05, 0.05, 0.8, 0.8, 0.8]
+	# Q = np.diag([15, 15, 15, 15, 15, 15]).astype(float)
+	R = 5 * np.diag([5, 5, 5, 50, 50, 50]).astype(float) # 5 * np.diag([1, 1 , 1, 15, 15, 15])
 	# print("Q: \n" + str(Q))
-
+	cov_.append(np.diag(P_prev))
 	t_prev = t[0];
 	for i in range(1, T):
 		t_cur = t[i];
@@ -347,10 +347,11 @@ def estimate_rot(data_num=1):
 		ox.append(-Y_bar[4,0])
 		oy.append(-Y_bar[5,0])
 		oz.append(Y_bar[6,0])
+		cov_.append(np.sqrt(np.diag(P_prev)))
 		# p_ori.append(qua_y_P_k.euler_angles());
 		# p_ome.append(P_k_dia[3:6]);
 
-
+	cov_ = np.asarray(cov_).T
 	p_ori = np.asarray(p_ori);
 	p_ome = np.asarray(p_ome);
 	p_ori = p_ori.T
@@ -405,21 +406,50 @@ def estimate_rot(data_num=1):
 	ax3.set_title('ome_z')
 	plt.show();
 
-	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2,2)
-	fig.suptitle('filtered angular velocity')
-	ax1.plot(t[:-1], p_ori[0,:], label = "ox")
-	ax2.plot(t[:-1], p_ori[1,:], label = "oy")
-	ax3.plot(t[:-1], p_ori[2,:], label = "oz")
-	ax1.plot(t[:-1], p_ome[0,:], label = "true")
-	ax2.plot(t[:-1], p_ome[0,:], label = "true")
-	ax3.plot(t[:-1], p_ome[0,:], label = "true")
+	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+	fig.suptitle('mean and covariance of orientation')
+	ax1.plot(t, yaw_, label = "yaw")
+	ax2.plot(t, pitch_, label = "pitch")
+	ax3.plot(t, roll_, label = "roll")
+	ax1.vlines(t, -cov_[2,:] + yaw_, cov_[2,:] + yaw_, alpha=.1, color='y')
+	ax2.vlines(t, -cov_[1,:] + pitch_, cov_[1,:] + pitch_, alpha=.1, color='y')
+	ax3.vlines(t, -cov_[0,:] + roll_, cov_[0,:] + roll_, alpha=.1, color='y')
 	ax1.legend()
 	ax2.legend()
 	ax3.legend()
-	ax1.set_title('ome_x')
-	ax2.set_title('ome_y')
-	ax3.set_title('ome_z')
+	ax1.set_title('yaw')
+	ax2.set_title('pitch')
+	ax3.set_title('roll')
 	plt.show();
+
+	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+	fig.suptitle('mean and covariance of angular velocity')
+	ax1.plot(t, ox, label = "ox")
+	ax2.plot(t, oy, label = "oy")
+	ax3.plot(t, oz, label = "oz")
+	ax1.vlines(t, -cov_[0,:] + ox, cov_[0,:] + ox, alpha=.1, color='y')
+	ax2.vlines(t, -cov_[1,:] + oy, cov_[1,:] + oy, alpha=.1, color='y')
+	ax3.vlines(t, -cov_[2,:] + oz, cov_[2,:] + oz, alpha=.1, color='y')
+	ax1.legend()
+	ax2.legend()
+	ax3.legend()
+	plt.show();
+
+	# fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2,2)
+	# fig.suptitle('filtered angular velocity')
+	# ax1.plot(t[:-1], p_ori[0,:], label = "ox")
+	# ax2.plot(t[:-1], p_ori[1,:], label = "oy")
+	# ax3.plot(t[:-1], p_ori[2,:], label = "oz")
+	# ax1.plot(t[:-1], p_ome[0,:], label = "true")
+	# ax2.plot(t[:-1], p_ome[0,:], label = "true")
+	# ax3.plot(t[:-1], p_ome[0,:], label = "true")
+	# ax1.legend()
+	# ax2.legend()
+	# ax3.legend()
+	# ax1.set_title('ome_x')
+	# ax2.set_title('ome_y')
+	# ax3.set_title('ome_z')
+	# plt.show();
 
 	# roll, pitch, yaw are numpy arrays of length T
 	return roll_, pitch_, yaw_

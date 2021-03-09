@@ -29,7 +29,7 @@ state_[0, 0] = 1;
 state_[1, 0] = -40
 pro_noise = np.diag([1, 0.1])
 Q = 1;
-
+cov = [];
 states = []
 for i in range(100):
 	A = np.array([[state_[1, 0], state_[0, 0]],[0, 1]]);
@@ -56,13 +56,17 @@ for i in range(100):
 	state_ = predict_state + K * (Y[i] - np.sqrt(predict_state[0, 0] ** 2 + 1))
 	# state_[1,0] = predict_state[1,0]
 	states.append(state_)
-	print(state_.T)
+	cov.append([state_[1,0] - np.sqrt(cov_[1,1]), state_[1,0] + np.sqrt(cov_[1,1])])
 
 states = np.asarray(states).T;
+cov = np.asarray(cov).T;
 fig, ((ax1, ax2)) = plt.subplots(1,2)
 ax1.plot(range(100), states[0, 0,:], label = "track Y")
 ax1.plot(range(100), Y, label = "TrueY")
 ax2.plot(range(100), states[0, 1,:], label = "A")
+ax2.vlines(range(100),cov[0,:], cov[1,:], alpha=.3)
+ax2.scatter(range(100),cov[1,:], marker='.', alpha=.1)
+ax2.scatter(range(100),cov[0,:], marker='.', alpha=.1)
 ax1.legend()
 ax2.legend()
 plt.show();

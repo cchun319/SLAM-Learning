@@ -56,7 +56,9 @@ def generateQT(p):
 		if(r < 0 or r > 9 or c < 0 or c > 9 or board[r][c] < 0 or board_vec[i] < 0):
 			q[i] = -11;
 		elif(board_vec[i] == 2):
+			T[i,i] = 1
 			q[i] = 10;
+			continue;
 		else:
 			q[i] = -1;
 

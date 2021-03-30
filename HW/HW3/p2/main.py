@@ -1,7 +1,7 @@
 # Pratik Chaudhari (pratikac@seas.upenn.edu)
 
 import click, tqdm, random
-
+from load_data import *
 from slam import *
 
 def run_dynamics_step(src_dir, log_dir, idx, split, t0=0, draw_fig=False):
@@ -139,6 +139,8 @@ def main(src_dir, log_dir, idx, split, mode):
 
     np.random.seed(42)
     random.seed(42)
+    
+    print(show_lidar(load_lidar_data('./data/train/train_joint0.mat')));
 
     if mode == 'dynamics':
         run_dynamics_step(src_dir, log_dir, idx, split)

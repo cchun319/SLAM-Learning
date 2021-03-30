@@ -1,5 +1,6 @@
 import numpy as np;
 from numpy import linalg as LA
+import matplotlib.pyplot as plt
 
 board = np.zeros((10, 10));
 
@@ -13,6 +14,7 @@ board[9 - 2, 3:7] = -10;
 board[[0,-1], :] = -10;
 board[:,[0,-1]] = -10;
 board_vec = board.flatten('C');
+print(board)
 # board = board.reshape((100,1))
 # print(board.reshape((100,1)));
 
@@ -37,7 +39,7 @@ def generateQT(p):
 		if(p[i] == 0):
 			stay1c +=1;
 			stay2c += -1;
-			r += 1; c +=0;
+			r += 1; c += 0;
 		if(p[i] == 1):
 			stay1r += 1;
 			stay2r += -1;
@@ -45,15 +47,15 @@ def generateQT(p):
 		if(p[i] == 2):
 			stay1c +=1;
 			stay2c += -1;
-			r += -1; c +=0;
+			r += -1; c += 0;
 		if(p[i] == 3):
 			stay1r += 1;
 			stay2r += -1;
 			r += 0; c += -1;
 
-		if(r < 0 or r > 9 or c < 0 or c > 9 or board[r][c] < 0):
-			q[i] = -10;
-		elif(board[r][c] == 2):
+		if(r < 0 or r > 9 or c < 0 or c > 9 or board[r][c] < 0 or board_vec[i] < 0):
+			q[i] = -11;
+		elif(board_vec[i] == 2):
 			q[i] = 10;
 		else:
 			q[i] = -1;
@@ -74,13 +76,14 @@ def generateQT(p):
 
 	return q, T;
 
-v = [1,0,-1,0];
-h = [0,1,0,-1];
+v = [1, 0, -1, 0];
+h = [0, 1, 0, -1];
+
 def newPolicy(J):
 	ctl_policy = np.ones((100,1));
 	for i in range(1,9):
 		for j in range(1,9):
-			maxValue = 0;
+			maxValue = -100;
 			maxd = 0;
 			for k in range(4):
 				nr = i + v[k];
@@ -92,16 +95,24 @@ def newPolicy(J):
 
 	return ctl_policy;
 
+def printJ(J):
+	for i in range(10):
+		for j in range(10):
+			print("%.2f" % round(J[i][j], 2), end = "\t")
+		print("\n");
+
 
 # print(board);
 
 # transision matrix
 
 
+
 ctl_policy = np.ones((100,1));
 ctl_policy_prev = np.zeros((100,1));
 J_opt_10x10 = np.zeros((10,10))
-while(LA.norm(ctl_policy - ctl_policy_prev) > 1e-5):
+ct = 0;
+while(LA.norm(ctl_policy - ctl_policy_prev) > 1e-5 and ct < 100):
 	# use current policy to genereate q vector;
 	q, T = generateQT(ctl_policy)
 
@@ -109,7 +120,29 @@ while(LA.norm(ctl_policy - ctl_policy_prev) > 1e-5):
 	J_opt_10x10 = np.reshape(J_opt, (10,10), 'C')
 	ctl_policy_prev = ctl_policy;
 	ctl_policy = newPolicy(J_opt_10x10)
+	ct += 1;
 
 print(np.reshape(ctl_policy, (10,10), 'C'))
-print(J_opt_10x10)
+printJ(J_opt_10x10)
 
+X = np.array((0))
+Y= np.array((0.5))
+U = np.array((2))
+V = np.array((0))
+
+fig, ax = plt.subplots()
+q = ax.quiver(X, Y, U, V,units='xy' ,scale=1)
+
+# plt.grid()
+major_ticks = np.arange(0, 11, 1)
+ax.set_xticks(major_ticks);
+ax.set_yticks(major_ticks);
+ax.set_aspect('equal')
+ax.grid(which='both');
+plt.xlim(0,10)
+plt.ylim(0,10)
+
+plt.title('How to plot a vector in matplotlib ?',fontsize=10)
+
+# plt.savefig('how_to_plot_a_vector_in_matplotlib_fig3.png', bbox_inches='tight')
+plt.show()

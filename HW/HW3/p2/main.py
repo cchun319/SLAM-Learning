@@ -115,7 +115,8 @@ def run_slam(src_dir, log_dir, idx, split):
     # correct lidar scan. First find the time t0 around which we have both LiDAR
     # data and joint data
     #### TODO: XXXXXXXXXXX
-
+    # slam.init_particles();
+    
     # initialize the occupancy grid using one particle and calling the observation_step
     # function
     #### TODO: XXXXXXXXXXX
@@ -139,8 +140,6 @@ def main(src_dir, log_dir, idx, split, mode):
 
     np.random.seed(42)
     random.seed(42)
-    
-    print(show_lidar(load_lidar_data('./data/train/train_joint0.mat')));
 
     if mode == 'dynamics':
         run_dynamics_step(src_dir, log_dir, idx, split)

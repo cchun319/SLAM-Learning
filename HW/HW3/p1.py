@@ -37,7 +37,7 @@ def generateQT(p):
 
 		# 0: n, 1:e, 2:s, 3:w
 		if(p[i] == 0):
-			stay1c +=1;
+			stay1c += 1;
 			stay2c += -1;
 			r += 1; c += 0;
 		if(p[i] == 1):
@@ -45,7 +45,7 @@ def generateQT(p):
 			stay2r += -1;
 			r += 0; c += 1;
 		if(p[i] == 2):
-			stay1c +=1;
+			stay1c += 1;
 			stay2c += -1;
 			r += -1; c += 0;
 		if(p[i] == 3):
@@ -61,7 +61,7 @@ def generateQT(p):
 			q[i] = -1;
 
 		if(board_vec[i] < 0): # border
-			T[i,:] = 0
+			T[i,i] = 1
 			continue;
 		
 		destr = r;

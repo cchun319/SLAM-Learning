@@ -161,9 +161,11 @@ class slam_t:
 
         if t == 0:
             return np.zeros(3)
+        raise NotImplementedError
 
         #### TODO: XXXXXXXXXXX
-        raise NotImplementedError
+        return smart_minus_2d(s.prev, s.current);
+
 
     def dynamics_step(s, t):
         """"

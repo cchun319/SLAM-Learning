@@ -1,6 +1,7 @@
 import numpy as np;
 from numpy import linalg as LA
 import matplotlib.pyplot as plt
+import seaborn as sns; sns.set_theme()
 
 board = np.zeros((10, 10));
 
@@ -53,12 +54,13 @@ def generateQT(p):
 			stay2r += -1;
 			r += 0; c += -1;
 
-		if(r < 0 or r > 9 or c < 0 or c > 9 or board[r][c] < 0 or board_vec[i] < 0):
-			q[i] = -11;
-		elif(board_vec[i] == 2):
+		
+		if(board_vec[i] == 2):
 			T[i,i] = 1
-			q[i] = 10;
+			q[i] = 9;
 			continue;
+		elif(r < 0 or r > 9 or c < 0 or c > 9 or board[r][c] < 0 or board_vec[i] < 0):
+			q[i] = -11;
 		else:
 			q[i] = -1;
 
@@ -114,18 +116,23 @@ ctl_policy = np.ones((100,1));
 ctl_policy_prev = np.zeros((100,1));
 J_opt_10x10 = np.zeros((10,10))
 ct = 0;
-while(LA.norm(ctl_policy - ctl_policy_prev) > 1e-5 and ct < 100):
+while(LA.norm(ctl_policy - ctl_policy_prev) > 1e-5 and ct < 200):
 	# use current policy to genereate q vector;
 	q, T = generateQT(ctl_policy)
 
 	J_opt = LA.pinv(np.diag([1]*100) - 0.9 * T) @ q;
 	J_opt_10x10 = np.reshape(J_opt, (10,10), 'C')
+	if(ct == 0):
+		printJ(J_opt_10x10);
+		ax = sns.heatmap(J_opt_10x10)
 	ctl_policy_prev = ctl_policy;
 	ctl_policy = newPolicy(J_opt_10x10)
 	ct += 1;
 
 print(np.reshape(ctl_policy, (10,10), 'C'))
 printJ(J_opt_10x10)
+
+
 
 X = np.array((0))
 Y= np.array((0.5))

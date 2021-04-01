@@ -28,7 +28,7 @@ class map_t:
 
         # binarized map and log-odds
         s.cells = np.zeros((s.szx, s.szy), dtype=np.int8)
-        s.log_odds = np.zeros(s.cells.shape, dtype=np.float64)
+        s.log_odds = np.zeros(s.cells.shape, dtype=np.float64) 
 
         # value above which we are not going to increase the log-odds
         # similarly we will not decrease log-odds of a cell below -max
@@ -39,7 +39,7 @@ class map_t:
         # we call a cell occupied if the probability of
         # occupancy P(m_i | ... ) is >= occupied_prob_thresh
         s.occupied_prob_thresh = 0.6
-        s.log_odds_thresh = np.log(s.occupied_prob_thresh/(1-s.occupied_prob_thresh))
+        s.log_odds_thresh = np.log(s.occupied_prob_thresh/(1-s.occupied_prob_thresh)) # log(1.2)
 
     def grid_cell_from_xy(s, x, y):
         """
@@ -111,7 +111,7 @@ class slam_t:
         # sensor model lidar_log_odds_occ is the value by which we would increase the log_odds
         # for occupied cells. lidar_log_odds_free is the value by which we should decrease the
         # log_odds for free cells (which are all cells that are not occupied)
-        s.lidar_log_odds_occ = np.log(9)
+        s.lidar_log_odds_occ = np.log(9) # 0.9
         s.lidar_log_odds_free = np.log(1/9.)
 
     def init_particles(s, n=100, p=None, w=None, t0=0):
@@ -193,10 +193,12 @@ class slam_t:
 
         control = s.get_control(t);
         for i in np.arange(s.p.shape[1]):
-            s.p[:, i] = smart_plus_2d(s.p[i], control); # TODO: add noise
+            s.p[:, i] = smart_plus_2d(s.p[:, i], control); # TODO: add noise
+            # noise = np.array([ np.random.normal(0, s.Q[0,0], 1), np.random.normal(0, s.Q[1,1], 1), np.random.normal(0, s.Q[2,2], 1)])
+            # s.p[:, i] = smart_plus_2d(s.p[:, i], noise)
 
     @staticmethod
-    def update_weights(w, obs_logp):
+    def update_weights(w, obs_logp): #(len, occupancy grid)?
         """
         Given the observation log-probability and the weights of particles w, calculate the
         new weights as discussed in the writeup. Make sure that the new weights are normalized
@@ -224,15 +226,18 @@ class slam_t:
         numOfParticle = s.p.shape[1];
         # target = s.rays2world(s.lidar[t]['xyth'], s.lidar[t]['scan'], s.joint[t]['head_angle'][0], s.joint[t]['head_angle'][1], s.lidar_angles);
         # Q: what is the target distribution here?        
-
+        # probabilty map
         proposals = np.zeros((numOfParticle, s.map.szx, s.map.szy), dtype=np.int8);
-        for i in np.arange(numOfParticle):
+        for i in np.arange(numOfParticle): # iterate all the 
             occu = s.rays2world(s.p[t], s.lidar[t]['scan'], s.joint[t]['head_angle'][0], s.joint[t]['head_angle'][1], s.lidar_angles);
             indices = s.map.grid_cell_from_xy(occu[0,:], occu[1,:]);
             for j in np.arange(indices.shape[1]):
                 proposals[i][indices[j][0]][indices[j][1]] += 1;
                 proposals[proposals < s.log_odds_thresh] = 0
                 proposals[proposals >= s.log_odds_thresh] = 1
+
+            s.cells * probabilty_each_particle
+            # s.cells binary maps -> s.p[i] proposal 
 
         update_weights(s.w, proposals);
 

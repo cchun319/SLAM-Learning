@@ -49,7 +49,15 @@ class map_t:
         np.clip to handle these situations.
         """
         #### TODO: XXXXXXXXXXX
-        raise NotImplementedError
+        numOfSample = len(x);
+        np.clip(x, s.xmin, s.xmax);
+        np.clip(y, s.ymin, s.ymax);
+        r = (x - s.xmin) / s.resolution;
+        c = (y - s.ymin) / s.resolution;
+        grid_indices = np.zeros((2, numOfSample), dtype=float64);
+        grid_indices[0,:] = r;
+        grid_indices[1,:] = c; 
+        return grid_indices;
 
 class slam_t:
     """
@@ -133,23 +141,34 @@ class slam_t:
     def rays2world(s, p, d, head_angle=0, neck_angle=0, angles=None):
         """
         p is the pose of the particle (x,y,yaw)
-        angles = angle of each ray in the body frame (this will usually
-        be simply s.lidar_angles for the different lidar rays)
+        angles = angle of each ray in the body frame (this will usually be simply s.lidar_angles for the different lidar rays)
         d = is an array that stores the distance of along the ray of the lidar, for each ray (the length of d has to be equal to that of angles, this is s.lidar[t]['scan'])
         Return an array 2 x num_rays which are the (x,y) locations of the end point of each ray
         in world coordinates
         """
         #### TODO: XXXXXXXXXXX
-        raise NotImplementedError
 
         # make sure each distance >= dmin and <= dmax, otherwise something is wrong in reading
         # the data
-
-        # 1. from lidar distances to points in the LiDAR frame
+        np.clip(d, s.lidar_dmin, s.lidar_dmax);
+        # 1. from lidar distances to points in the LiDAR frame, #(r, the) -> (x, y, 0) in lidar frame
+        scan_in_lidar = np.zeros((len(angles), 3), dtype=float64);
+        scan_in_lidar[0,:] = d * np.cos(angles);
+        scan_in_lidar[1,:] = d * np.sin(angles); # (3 x n)
+        scan_in_lidar_H = make_homogeneous_coords_3d(scan_in_lidar);
 
         # 2. from LiDAR frame to the body frame
+        R_bodyToLidar = euler_to_se3(0, neck_angle, head_angle, np.array([0, 0, s.lidar_height])); # 4 x 4
 
-        # 3. from body frame to world frame
+        scan_in_body = R.T @ scan_in_lidar_H;        
+        # 3. from body frame to world frame (x, y, s.head_height, the)
+        R_worldToBody = euler_to_se3(0, 0, p[2], np.array([p[0], p[1], s.head_height]));
+        scan_in_world = R_worldToBody.T @ scan_in_body;
+
+        scan_in_world_planar = scan_in_world[:2, :]; 
+
+        return scan_in_world_planar;
+
 
     def get_control(s, t):
         """
@@ -161,10 +180,9 @@ class slam_t:
 
         if t == 0:
             return np.zeros(3)
-        raise NotImplementedError
 
         #### TODO: XXXXXXXXXXX
-        return smart_minus_2d(s.prev, s.current);
+        return smart_minus_2d(s.lidar[t]['xyth'], s.lidar[t - 1]['xyth']);
 
 
     def dynamics_step(s, t):
@@ -172,7 +190,10 @@ class slam_t:
         Compute the control using get_control and perform that control on each particle to get the updated locations of the particles in the particle filter, remember to add noise using the smart_plus_2d function to each particle
         """
         #### TODO: XXXXXXXXXXX
-        raise NotImplementedError
+
+        control = s.get_control(t);
+        for i in np.arange(s.p.shape[1]):
+            s.p[:, i] = smart_plus_2d(s.p[i], control); # TODO: add noise
 
     @staticmethod
     def update_weights(w, obs_logp):
@@ -200,7 +221,22 @@ class slam_t:
         You should ensure that map.cells is recalculated at each iteration (it is simply the binarized version of log_odds). map.log_odds is of course maintained across iterations.
         """
         #### TODO: XXXXXXXXXXX
-        raise NotImplementedError
+        numOfParticle = s.p.shape[1];
+        # target = s.rays2world(s.lidar[t]['xyth'], s.lidar[t]['scan'], s.joint[t]['head_angle'][0], s.joint[t]['head_angle'][1], s.lidar_angles);
+        # Q: what is the target distribution here?        
+
+        proposals = np.zeros((numOfParticle, s.map.szx, s.map.szy), dtype=np.int8);
+        for i in np.arange(numOfParticle):
+            occu = s.rays2world(s.p[t], s.lidar[t]['scan'], s.joint[t]['head_angle'][0], s.joint[t]['head_angle'][1], s.lidar_angles);
+            indices = s.map.grid_cell_from_xy(occu[0,:], occu[1,:]);
+            for j in np.arange(indices.shape[1]):
+                proposals[i][indices[j][0]][indices[j][1]] += 1;
+                proposals[proposals < s.log_odds_thresh] = 0
+                proposals[proposals >= s.log_odds_thresh] = 1
+
+        update_weights(s.w, proposals);
+
+
 
     def resample_particles(s):
         """

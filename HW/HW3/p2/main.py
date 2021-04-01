@@ -115,8 +115,8 @@ def run_slam(src_dir, log_dir, idx, split):
     # correct lidar scan. First find the time t0 around which we have both LiDAR
     # data and joint data
     #### TODO: XXXXXXXXXXX
-    # slam.init_particles();
-    
+    # slam.init_particles(n = 100, );
+
     # initialize the occupancy grid using one particle and calling the observation_step
     # function
     #### TODO: XXXXXXXXXXX

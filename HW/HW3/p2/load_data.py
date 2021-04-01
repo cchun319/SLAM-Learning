@@ -7,13 +7,13 @@ import matplotlib.pyplot as plt
 
 def load_lidar_data(fn):
     d = io.loadmat(fn)
-    print(d)
+    # print(d)
     r = []
     for m in d['lidar'][0]:
         t = {}
         t['t'] = m[0][0][0][0][0]               # Unix time in seconds
         nn = len(m[0][0])
-        if (nn != 5):# and (n != 6):
+        if (nn != 5) and (nn != 6):
             raise ValueError('Corrupted lidar data')
 
         # +x axis points forwards, +y points left, +z points upwards
@@ -22,6 +22,7 @@ def load_lidar_data(fn):
         t['rpy'] = m[0][0][nn-2][0]             # roll-pitch-yaw
         t['scan'] = m[0][0][nn-1][0]
         r.append(t)
+        # print(t['scan']);
 
     # we are going to remove the initial yaw from the lidar yaw here
     offset = r[0]['rpy'][2]
@@ -33,8 +34,10 @@ def load_joint_data(fn):
     keys = ['acc', 'ts', 'rpy', 'gyro', 'pos', 'ft_l', 'ft_r', 'head_angles']
     d = io.loadmat(fn)
     j = {k:d[k] for k in keys}
-    j['t'] = j['ts'].squeeze(); j['xyz'] = j['pos'];
-    j.pop('ts'); j.pop('pos');
+    j['t'] = j['ts'].squeeze(); 
+    j['xyz'] = j['pos'];
+    j.pop('ts'); 
+    j.pop('pos');
     return j
 
 # these are some functions to visualize lidar data

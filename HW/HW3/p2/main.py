@@ -109,13 +109,26 @@ def run_slam(src_dir, log_dir, idx, split):
     slam.read_data(src_dir, idx, split)
     T = len(slam.lidar)
 
-    raise NotImplementedError
     # again initialize the map to enable calculation of the observation logp in
     # future steps, this time we want to be more careful and initialize with the
     # correct lidar scan. First find the time t0 around which we have both LiDAR
     # data and joint data
     #### TODO: XXXXXXXXXXX
-    # slam.init_particles(n = 100, );
+    slam.init_particles(n = 100);
+    ax = plt.subplot(111)
+
+    grids = [];
+    particles = [];
+    for t in tqdm.tqdm(range(1,T)):
+        slam.dynamics_step(t);
+        slam.observation_step(t)
+        grids.append(slam.map.cells);
+        x, y = np.nonzero(slam.map.cells);
+        particles.append(slam.p);
+        ax.clear()
+        ax.plot(particles[-1][0,:], particles[-1][1,:], '*r')
+        plt.draw()
+        plt.pause(0.01)
 
     # initialize the occupancy grid using one particle and calling the observation_step
     # function
@@ -123,6 +136,7 @@ def run_slam(src_dir, log_dir, idx, split):
 
     # slam, save data to be plotted later
     #### TODO: XXXXXXXXXXX
+    return 0;
 
 @click.command()
 @click.option('--src_dir', default='./', help='data directory', type=str)

@@ -117,18 +117,24 @@ def run_slam(src_dir, log_dir, idx, split):
     slam.init_particles(n = 100);
     ax = plt.subplot(111)
 
-    grids = [];
     particles = [];
+    grids = np.zeros((800, 800), dtype = np.int8)
     for t in tqdm.tqdm(range(1,T)):
         slam.dynamics_step(t);
         slam.observation_step(t)
-        grids.append(slam.map.cells);
-        x, y = np.nonzero(slam.map.cells);
+        # grids.append(slam.map.cells);
         particles.append(slam.p);
-        ax.clear()
-        ax.plot(particles[-1][0,:], particles[-1][1,:], '*r')
-        plt.draw()
-        plt.pause(0.01)
+        x, y = np.nonzero(slam.map.cells);
+        grids[x, y] = 1;
+        if(t % 1000 == 0): 
+            px, py = np.nonzero(grids);
+            ax.clear()
+            # ax.plot(particles[-1][0,:], particles[-1][1,:], '*r')
+            ax.plot(px, py, '*r')
+            # plt.xlim([0,800])
+            # plt.ylim([0,800])
+            plt.draw()
+            plt.pause(0.01)
 
     # initialize the occupancy grid using one particle and calling the observation_step
     # function

@@ -50,10 +50,10 @@ class map_t:
         """
         #### TODO: XXXXXXXXXXX
         numOfSample = len(x);
-        np.clip(x, s.xmin, s.xmax);
-        np.clip(y, s.ymin, s.ymax);
-        r = (x - s.xmin) / s.resolution;
-        c = (y - s.ymin) / s.resolution;
+        x = np.clip(x, s.xmin, s.xmax);
+        y = np.clip(y, s.ymin, s.ymax);
+        r = (x - s.xmin) // s.resolution;
+        c = (y - s.ymin) // s.resolution;
         grid_indices = np.zeros((2, numOfSample), dtype=np.uint8);
         grid_indices[0,:] = r;
         grid_indices[1,:] = c; 
@@ -135,7 +135,7 @@ class slam_t:
 
         numOfParticle = p.shape[1];
         newW = np.ones_like(w) / numOfParticle;
-        newP = np.zeros_like(p);
+        newP = np.zeros_like(p, dtype=np.float64);
         i = 0
         c = w[0];
         r = np.random.uniform(0.0, 1.0 / numOfParticle)
@@ -145,11 +145,10 @@ class slam_t:
             while(u > c):
                 i = i + 1;
                 c = c + w[i % numOfParticle];
-            
-            newP[wid] = p[i % numOfParticle];
-            wid += 1
 
-        return newW, newP;
+            newP[:, m] = p[:, i % numOfParticle];
+
+        return newP, newW,;
 
 
     @staticmethod
@@ -169,7 +168,7 @@ class slam_t:
         # the data
 
 
-        np.clip(d, s.lidar_dmin, s.lidar_dmax);
+        d = np.clip(d, s.lidar_dmin, s.lidar_dmax);
         # 1. from lidar distances to points in the LiDAR frame, #(r, the) -> (x, y, 0) in lidar frame
         scan_in_lidar = np.zeros((3, len(angles)), dtype=float);
         scan_in_lidar[0,:] = d * np.cos(angles);
@@ -177,12 +176,12 @@ class slam_t:
         scan_in_lidar_H = make_homogeneous_coords_3d(scan_in_lidar);
 
         # 2. from LiDAR frame to the body frame
-        R_bodyToLidar = euler_to_se3(0, neck_angle, head_angle, np.array([0, 0, s.lidar_height])); # 4 x 4
+        R_bodyToLidar = euler_to_se3(0, head_angle, neck_angle , np.array([0, 0, s.lidar_height])); # 4 x 4
 
-        scan_in_body = R_bodyToLidar.T @ scan_in_lidar_H;        
+        scan_in_body = R_bodyToLidar @ scan_in_lidar_H;        
         # 3. from body frame to world frame (x, y, s.head_height, the)
         R_worldToBody = euler_to_se3(0, 0, p[2], np.array([p[0], p[1], s.head_height]));
-        scan_in_world = R_worldToBody.T @ scan_in_body;
+        scan_in_world = R_worldToBody @ scan_in_body;
 
         scan_in_world_planar = scan_in_world[:2, :]; 
 
@@ -213,22 +212,19 @@ class slam_t:
             s.p[:, i] = smart_plus_2d(s.p[:, i], control); # TODO: add noise
             noise = np.random.multivariate_normal(np.zeros(s.Q.shape[0]), s.Q);
             s.p[:, i] = smart_plus_2d(s.p[:, i], noise)
-
+    
     @staticmethod
-    def update_weights(w, obs_logp): #(len, occupancy grid)?
+    def update_weights(w, obs_logp): 
         """
         Given the observation log-probability and the weights of particles w, calculate the
         new weights as discussed in the writeup. Make sure that the new weights are normalized
         """
         #### TODO: XXXXXXXXXXX
-        newWeight = w * obs_logp
-        sumOfWeight = np.sum(newWeight);
-        if(sumOfWeight == 0.0):
-            return newWeight;
+        log_w = np.log(w) + obs_logp;
+        newWeight = log_w - slam_t.log_sum_exp(log_w);
 
-        return (newWeight) / np.sum(newWeight);
+        return np.exp(newWeight);
 
-        
 
     def observation_step(s, t):
         """
@@ -252,33 +248,37 @@ class slam_t:
         tid = s.find_joint_t_idx_from_lidar(s.lidar[t]['t'])
 
         similarities = np.zeros(numOfParticle);
-        proposals = np.zeros((numOfParticle, s.map.szx, s.map.szy), dtype=np.int8);
-        for i in np.arange(numOfParticle): # iterate all the 
-            occu = s.rays2world(s.p[:, i], s.lidar[t]['scan'], s.joint['head_angles'][0][tid], s.joint['head_angles'][1][tid], s.lidar_angles);
-            indices = s.map.grid_cell_from_xy(occu[0,:], occu[1,:]);
-            
-            for j in np.arange(indices.shape[1]):
-                proposals[i][indices[0][j]][indices[1][j]] = 1;
-                s.map.num_obs_per_cell[indices[0][j]][indices[1][j]] += 1
-            np.clip(proposals[i, :, :], 0, 1);
 
-            sim_ = np.sum(s.map.cells * proposals[i, :, :]); 
-            similarities[i] = sim_;
+        neck_ang = s.joint['head_angles'][0][tid];
+        head_ang = s.joint['head_angles'][1][tid];
+
+        for i in np.arange(numOfParticle): # iterate all the 
+            occu = s.rays2world(s.p[:, i], s.lidar[t]['scan'], head_ang, neck_ang, s.lidar_angles);
+            indices = s.map.grid_cell_from_xy(occu[0,:], occu[1,:]);
+
+            s.map.num_obs_per_cell[indices[0, :], indices[1, :]] += 1
+
+            similarities[i] = np.sum(s.map.cells[indices[0, :], indices[1, :]]);
 
         s.w = s.update_weights(s.w, similarities);
 
         id_max = np.argmax(s.w);
 
-        s.map.log_odds[proposals[id_max,:,:] == 1] += s.lidar_log_odds_occ;
-        s.map.log_odds[proposals[id_max,:,:] == 0] += s.lidar_log_odds_free;
+        occu_max = s.rays2world(s.p[:, id_max], s.lidar[t]['scan'], head_ang, neck_ang, s.lidar_angles);
+        max_indices = s.map.grid_cell_from_xy(occu_max[0,:], occu_max[1,:]);
 
+        maxProposal = np.zeros((s.map.szx, s.map.szy), dtype= np.int8);
+        maxProposal[max_indices[0, : ], max_indices[1,:]] = 1;
 
-        np.clip(s.map.log_odds, -s.map.log_odds_max , s.map.log_odds_max);
+        s.map.log_odds[maxProposal == 1] += s.lidar_log_odds_occ;
+        s.map.log_odds[maxProposal == 0] += s.lidar_log_odds_free;
+
+        s.map.log_odds = np.clip(s.map.log_odds, -s.map.log_odds_max , s.map.log_odds_max);
 
         s.map.cells[s.map.log_odds >= s.map.log_odds_thresh] = 1;
         s.map.cells[s.map.log_odds < s.map.log_odds_thresh] = 0;
 
-        s.resample_particles();
+        s.resample_particles(); # the new weight might be all zero
 
     def resample_particles(s):
         """

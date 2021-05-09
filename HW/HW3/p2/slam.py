@@ -41,7 +41,7 @@ class map_t:
 
         # we call a cell occupied if the probability of
         # occupancy P(m_i | ... ) is >= occupied_prob_thresh
-        s.occupied_prob_thresh = 0.6
+        s.occupied_prob_thresh = 0.3
         s.log_odds_thresh = np.log(s.occupied_prob_thresh/(1-s.occupied_prob_thresh)) # log(1.2)
 
     def grid_cell_from_xy(s, x, y):

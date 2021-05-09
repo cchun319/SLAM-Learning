@@ -105,37 +105,65 @@ def run_slam(src_dir, log_dir, idx, split):
     be something larger than the very small value we picked in run_dynamics_step function
     above.
     """
-    slam = slam_t(resolution=0.05, Q=np.diag([2e-4,2e-4,1e-4]))
+    slam = slam_t(resolution=0.05, Q=np.diag([2e-4,2e-4,10e-4]))
     slam.read_data(src_dir, idx, split)
     T = len(slam.lidar)
+    print(slam.lidar[0]['t'])
+    print(slam.joint['t'][0])
+
+
 
     # again initialize the map to enable calculation of the observation logp in
     # future steps, this time we want to be more careful and initialize with the
     # correct lidar scan. First find the time t0 around which we have both LiDAR
     # data and joint data
     #### TODO: XXXXXXXXXXX
-    slam.init_particles(n = 100);
-    ax = plt.subplot(111)
+    t0 = 0;
+    while(abs(slam.lidar[t0]['t'] < float(slam.joint['t'][0]))):
+        t0 += 1
+        
 
+    slam.init_particles(n = 40);
+    ax = plt.subplot(111)
+    tx = [];
+    ty = [];
     particles = [];
-    grids = np.zeros((800, 800), dtype = np.int8)
-    for t in tqdm.tqdm(range(1,T)):
+    for t in tqdm.tqdm(range(t0,T)):
         slam.dynamics_step(t);
         slam.observation_step(t)
         # grids.append(slam.map.cells);
         particles.append(slam.p);
-        x, y = np.nonzero(slam.map.cells);
-        grids[x, y] = 1;
-        if(t % 1000 == 0): 
-            px, py = np.nonzero(grids);
+
+        cx = slam.current[0]
+        cy = slam.current[1]
+        r = (cx + 20) // 0.05;
+        c = (cy + 20) // 0.05;
+        tx.append(r);
+        ty.append(c);
+
+        if(t % 200 == 0): 
+            px, py = np.nonzero(slam.map.cells);
             ax.clear()
-            # ax.plot(particles[-1][0,:], particles[-1][1,:], '*r')
-            ax.plot(px, py, '*r')
-            # plt.xlim([0,800])
-            # plt.ylim([0,800])
+            ox, oy = np.where(slam.map.num_obs_per_cell == 0);
+            ax.plot(ox, oy, '.k', markersize = 1)
+            ax.plot(px, py, '.r', markersize = 1)
+            ax.plot(tx, ty, '.g', markersize = 1)
+
+            plt.xlim([0,800])
+            plt.ylim([0,800])
             plt.draw()
             plt.pause(0.01)
 
+    ax.clear()
+    # ax.plot(particles[-1][0,:], particles[-1][1,:], '*r')
+    px, py = np.nonzero(slam.map.cells);
+    ax.plot(px, py, '*r', markersize = 2)
+    ox, oy = np.where(slam.map.num_obs_per_cell == 0);
+    ax.plot(ox, oy, '.k', markersize = 1)
+    ax.plot(tx, ty, '.g', markersize = 1)
+    plt.xlim([0,800])
+    plt.ylim([0,800])
+    plt.show()
     # initialize the occupancy grid using one particle and calling the observation_step
     # function
     #### TODO: XXXXXXXXXXX

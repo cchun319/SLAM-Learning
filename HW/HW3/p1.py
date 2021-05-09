@@ -106,11 +106,20 @@ def printJ(J):
 		print("\n");
 
 
-# print(board);
-
 # transision matrix
-
-
+def genereateDirection(m):
+	r, c = m.shape;
+	x = [];
+	y = [];
+	dx = [];
+	dy = [];
+	for i in range(1, r - 1):
+		for j in range(1, c - 1):
+			x.append(i + 0.5)
+			y.append(j)
+			dx.append(x[-1] + 0.5)
+			dy.append(y[-1])
+	return x, y, dx, dy
 
 ctl_policy = np.ones((100,1));
 ctl_policy_prev = np.zeros((100,1));
@@ -122,15 +131,36 @@ while(LA.norm(ctl_policy - ctl_policy_prev) > 1e-5 and ct < 200):
 
 	J_opt = LA.pinv(np.diag([1]*100) - 0.9 * T) @ q;
 	J_opt_10x10 = np.reshape(J_opt, (10,10), 'C')
-	if(ct == 0):
-		printJ(J_opt_10x10);
-		ax = sns.heatmap(J_opt_10x10)
+	
+		# ax = sns.heatmap(J_opt_10x10)
 	ctl_policy_prev = ctl_policy;
 	ctl_policy = newPolicy(J_opt_10x10)
+	if(ct < 4 or ct == 199):
+		# printJ(J_opt_10x10);
+		# print(np.reshape(ctl_policy, (10,10), 'C'));
+		plt.imshow(J_opt_10x10, cmap='hot')
+		r, c = ctl_policy.shape;
+		for i in range(10):
+			for j in range(10):
+				idx = i * 10 + j;
+				if board[i][j] == 2:
+					continue;
+				if ctl_policy[idx] == 0:
+					plt.arrow(j, i, 0, 0.3 , width = 0.03, ec="green")
+				if ctl_policy[idx] == 1:
+					plt.arrow(j, i, 0.3, 0 , width = 0.03, ec="green")
+				if ctl_policy[idx] == 2:
+					plt.arrow(j, i, 0, -0.3 , width = 0.03, ec="green")
+				if ctl_policy[idx] == 3:
+					plt.arrow(j, i, -0.3, 0 , width = 0.03, ec="green")
+
+		plt.grid(b=None)
+
+		plt.show()
 	ct += 1;
 
-print(np.reshape(ctl_policy, (10,10), 'C'))
-printJ(J_opt_10x10)
+# print(np.reshape(ctl_policy, (10,10), 'C'))
+# printJ(J_opt_10x10)
 
 
 
@@ -139,19 +169,19 @@ Y= np.array((0.5))
 U = np.array((2))
 V = np.array((0))
 
-fig, ax = plt.subplots()
-q = ax.quiver(X, Y, U, V,units='xy' ,scale=1)
+# fig, ax = plt.subplots()
+# q = ax.quiver(X, Y, U, V,units='xy' ,scale=1)
 
-# plt.grid()
-major_ticks = np.arange(0, 11, 1)
-ax.set_xticks(major_ticks);
-ax.set_yticks(major_ticks);
-ax.set_aspect('equal')
-ax.grid(which='both');
-plt.xlim(0,10)
-plt.ylim(0,10)
+# # plt.grid()
+# major_ticks = np.arange(0, 11, 1)
+# ax.set_xticks(major_ticks);
+# ax.set_yticks(major_ticks);
+# ax.set_aspect('equal')
+# ax.grid(which='both');
+# plt.xlim(0,10)
+# plt.ylim(0,10)
 
-plt.title('How to plot a vector in matplotlib ?',fontsize=10)
+# plt.title('How to plot a vector in matplotlib ?',fontsize=10)
 
-# plt.savefig('how_to_plot_a_vector_in_matplotlib_fig3.png', bbox_inches='tight')
-plt.show()
+# # plt.savefig('how_to_plot_a_vector_in_matplotlib_fig3.png', bbox_inches='tight')
+# plt.show()

@@ -1,11 +1,14 @@
 # Pratik Chaudhari (pratikac@seas.upenn.edu)
-
+from matplotlib.path import Path
 import os, sys, pickle, math
 from copy import deepcopy
 
 from scipy import io
 import numpy as np
 import matplotlib.pyplot as plt
+
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 
 from load_data import load_lidar_data, load_joint_data, joint_name_to_index
 from utils import *
@@ -21,8 +24,8 @@ class map_t:
     """
     def __init__(s, resolution=0.05):
         s.resolution = resolution
-        s.xmin, s.xmax = -20, 20
-        s.ymin, s.ymax = -20, 20
+        s.xmin, s.xmax = -20.0, 20.0
+        s.ymin, s.ymax = -20.0, 20.0
         s.szx = int(np.ceil((s.xmax-s.xmin)/s.resolution+1))
         s.szy = int(np.ceil((s.ymax-s.ymin)/s.resolution+1))
 
@@ -52,12 +55,11 @@ class map_t:
         numOfSample = len(x);
         x = np.clip(x, s.xmin, s.xmax);
         y = np.clip(y, s.ymin, s.ymax);
-        r = (x - s.xmin) // s.resolution;
-        c = (y - s.ymin) // s.resolution;
-        grid_indices = np.zeros((2, numOfSample), dtype=np.uint8);
-        grid_indices[0,:] = r;
-        grid_indices[1,:] = c; 
-        return grid_indices;
+        r = (x - s.xmin) / s.resolution;
+        c = (y - s.ymin) / s.resolution;
+        r = r.astype(int)
+        c = c.astype(int)
+        return r, c;
 
 class slam_t:
     """
@@ -71,7 +73,7 @@ class slam_t:
         s.init_sensor_model()
 
         # dynamics noise for the state (x,y,yaw)
-        s.Q = 1e-8*np.eye(3)
+        s.Q = Q
 
         # we resample particles if the effective number of particles
         # falls below s.resampling_threshold*num_particles
@@ -94,7 +96,7 @@ class slam_t:
         # finds the closets idx in the joint timestamp array such that the timestamp
         # at that idx is t
         s.find_joint_t_idx_from_lidar = lambda t: np.argmin(np.abs(s.joint['t']-t))
-
+        s.current = s.lidar[0]['xyth'];
     def init_sensor_model(s):
         # lidar height from the ground in meters
         s.head_height = 0.93 + 0.33
@@ -111,8 +113,9 @@ class slam_t:
         # sensor model lidar_log_odds_occ is the value by which we would increase the log_odds
         # for occupied cells. lidar_log_odds_free is the value by which we should decrease the
         # log_odds for free cells (which are all cells that are not occupied)
-        s.lidar_log_odds_occ = np.log(9) # 0.9
-        s.lidar_log_odds_free = np.log(1/9.)
+        thres = 9.0 
+        s.lidar_log_odds_occ = np.log(thres) # 0.9
+        s.lidar_log_odds_free = np.log(1/thres)
 
     def init_particles(s, n=100, p=None, w=None, t0=0):
         """
@@ -134,28 +137,28 @@ class slam_t:
         #### TODO: XXXXXXXXXXX
 
         numOfParticle = p.shape[1];
-        newW = np.ones_like(w) / numOfParticle;
+        newW = np.ones_like(w, dtype=np.float64) / numOfParticle;
         newP = np.zeros_like(p, dtype=np.float64);
         i = 0
         c = w[0];
         r = np.random.uniform(0.0, 1.0 / numOfParticle)
 
         for m in np.arange(numOfParticle):
-            u = r + (m - 1) / numOfParticle;
+            u = r + m  / numOfParticle;
             while(u > c):
                 i = i + 1;
                 c = c + w[i % numOfParticle];
 
             newP[:, m] = p[:, i % numOfParticle];
 
-        return newP, newW,;
+        return newP, newW;
 
 
     @staticmethod
     def log_sum_exp(w):
         return w.max() + np.log(np.exp(w-w.max()).sum())
 
-    def rays2world(s, p, d, head_angle=0, neck_angle=0, angles=None):
+    def rays2world(s, p, d, head_angle=0, neck_angle=0, angles=None, t=0):
         """
         p is the pose of the particle (x,y,yaw)
         angles = angle of each ray in the body frame (this will usually be simply s.lidar_angles for the different lidar rays)
@@ -168,12 +171,16 @@ class slam_t:
         # the data
 
 
-        d = np.clip(d, s.lidar_dmin, s.lidar_dmax);
+        # d = np.clip(d, s.lidar_dmin, s.lidar_dmax);
+        indices = np.where((d <= s.lidar_dmax) & (d >= s.lidar_dmin));
+        angles = angles[indices];
+        d = d[indices];
+
         # 1. from lidar distances to points in the LiDAR frame, #(r, the) -> (x, y, 0) in lidar frame
-        scan_in_lidar = np.zeros((3, len(angles)), dtype=float);
+        scan_in_lidar = np.zeros((3, len(angles)), dtype=np.float64);
         scan_in_lidar[0,:] = d * np.cos(angles);
-        scan_in_lidar[1,:] = d * np.sin(angles); # (3 x n)
-        scan_in_lidar_H = make_homogeneous_coords_3d(scan_in_lidar);
+        scan_in_lidar[1,:] = d * np.sin(angles); 
+        scan_in_lidar_H = make_homogeneous_coords_3d(scan_in_lidar); # (4 x n) x, y, 0, 1
 
         # 2. from LiDAR frame to the body frame
         R_bodyToLidar = euler_to_se3(0, head_angle, neck_angle , np.array([0, 0, s.lidar_height])); # 4 x 4
@@ -183,9 +190,12 @@ class slam_t:
         R_worldToBody = euler_to_se3(0, 0, p[2], np.array([p[0], p[1], s.head_height]));
         scan_in_world = R_worldToBody @ scan_in_body;
 
-        scan_in_world_planar = scan_in_world[:2, :]; 
+        scan_in_world_planar = scan_in_world[:, scan_in_world[2,:] >= s.head_height - 0.1]
+        scan_in_world_planar = scan_in_world_planar[:, scan_in_world_planar[2,:] < 2 * s.head_height]
 
-        return scan_in_world_planar;
+        # scan_in_world_planar = scan_in_world
+
+        return scan_in_world_planar[0:2,:];
 
 
     def get_control(s, t):
@@ -199,7 +209,9 @@ class slam_t:
         if t == 0:
             return np.zeros(3)
 
-        return smart_minus_2d(s.lidar[t]['xyth'], s.lidar[t - 1]['xyth']);
+        control = smart_minus_2d(s.lidar[t]['xyth'], s.lidar[t - 1]['xyth']);
+        # control[2] = s.lidar[t]['rpy'][2] - s.lidar[t - 1]['rpy'][2]
+        return control
 
 
     def dynamics_step(s, t):
@@ -224,6 +236,62 @@ class slam_t:
         newWeight = log_w - slam_t.log_sum_exp(log_w);
 
         return np.exp(newWeight);
+
+    def sampleTheNonOccupyArea(s, x, y):
+        X = [];
+        Y = [];
+        direction = [x - s.current[0], y - s.current[1]];
+        lent = np.linalg.norm(direction, axis=0)
+        samplePts = lent // 0.05;
+        for i in np.arange(len(x)):
+            x_pts = np.linspace(s.current[0], x[1], int(samplePts[i]), endpoint = False);
+            y_pts = np.linspace(s.current[1], y[1], int(samplePts[i]), endpoint = False);
+            X.extend(x_pts)
+            Y.extend(y_pts)
+        return X, Y
+
+    def bresenham(s, x1,y1,x2,y2):
+ 
+        X = []
+        Y = []
+        if(abs(x1 - x2) < 1 and abs(y1 - y2) < 1):
+            return X, Y
+
+        if(abs(x2 - x1) > abs(y2 - y1)):
+            m_new = 2 * (y2 - y1)
+            slope_error_new = m_new - (x2 - x1)
+            
+            y = y1
+            for x in range(x1, x2 + 1, int(abs(x2 - x1) / (x2 - x1))):
+                X.append(x)
+                Y.append(y)
+                # Add slope to increment angle formed
+                slope_error_new = slope_error_new + m_new
+         
+                # Slope error reached limit, time to
+                # increment y and update slope error.
+                if (slope_error_new >= 0):
+                    y = y+1
+                    slope_error_new =slope_error_new - 2 * (x2 - x1)
+        else:
+            m_new = 2 * (x2 - x1)
+            slope_error_new = m_new - (y2 - y1)
+                
+            x = x1
+            # print("(",abs(x1 - x2) ,",",abs(y1 - y2),"\n")
+            for y in range(y1, y2, int(abs(y2 - y1) / (y2 - y1))):
+                X.append(x)
+                Y.append(y)
+                # Add slope to increment angle formed
+                slope_error_new =slope_error_new + m_new
+         
+                # Slope error reached limit, time to
+                # increment y and update slope error.
+                if (slope_error_new >= 0):
+                    x = x +1
+                    slope_error_new =slope_error_new - 2 * (y2 - y1)
+
+        return X, Y
 
 
     def observation_step(s, t):
@@ -253,27 +321,49 @@ class slam_t:
         head_ang = s.joint['head_angles'][1][tid];
 
         for i in np.arange(numOfParticle): # iterate all the 
-            occu = s.rays2world(s.p[:, i], s.lidar[t]['scan'], head_ang, neck_ang, s.lidar_angles);
-            indices = s.map.grid_cell_from_xy(occu[0,:], occu[1,:]);
+            occu = s.rays2world(s.p[:, i], s.lidar[t]['scan'], head_ang, neck_ang, s.lidar_angles, t);
+            ir, ic = s.map.grid_cell_from_xy(occu[0,:], occu[1,:]);
 
-            s.map.num_obs_per_cell[indices[0, :], indices[1, :]] += 1
-
-            similarities[i] = np.sum(s.map.cells[indices[0, :], indices[1, :]]);
+            similarities[i] = np.sum(s.map.cells[ir, ic]);
 
         s.w = s.update_weights(s.w, similarities);
 
         id_max = np.argmax(s.w);
+        s.current = s.p[:,id_max];
 
-        occu_max = s.rays2world(s.p[:, id_max], s.lidar[t]['scan'], head_ang, neck_ang, s.lidar_angles);
-        max_indices = s.map.grid_cell_from_xy(occu_max[0,:], occu_max[1,:]);
+        occu_max = s.rays2world(s.p[:, id_max], s.lidar[t]['scan'], head_ang, neck_ang, s.lidar_angles, t);
+        max_indices_r, max_indices_c = s.map.grid_cell_from_xy(occu_max[0,:], occu_max[1,:]);
+
+        limitsx = np.array([s.current[0] - s.lidar_dmax / 2, s.current[0] + s.lidar_dmax / 2, s.current[0]]);
+        limitsy = np.array([s.current[1] - s.lidar_dmax / 2, s.current[1] + s.lidar_dmax / 2, s.current[1]]);
+
+        lr, lc = s.map.grid_cell_from_xy(limitsx, limitsy)
 
         maxProposal = np.zeros((s.map.szx, s.map.szy), dtype= np.int8);
-        maxProposal[max_indices[0, : ], max_indices[1,:]] = 1;
 
-        s.map.log_odds[maxProposal == 1] += s.lidar_log_odds_occ;
-        s.map.log_odds[maxProposal == 0] += s.lidar_log_odds_free;
+        # notR = [];
+        # notC = [];
 
-        s.map.log_odds = np.clip(s.map.log_odds, -s.map.log_odds_max , s.map.log_odds_max);
+        # for i in range(len(max_indices_r)):
+        #     x_, y_ = s.bresenham(lr[2], lc[2], max_indices_r[i] , max_indices_c[i]);
+        #     notR.extend(x_);
+        #     notC.extend(y_);
+
+        x_f = np.ndarray.flatten(np.linspace([lr[2]]*len(max_indices_r), max_indices_r, endpoint=False).astype('int64'))
+        y_f = np.ndarray.flatten(np.linspace([lc[2]]*len(max_indices_r), max_indices_c, endpoint=False).astype('int64'))
+
+        # notX, notY = s.sampleTheNonOccupyArea(occu_max[0,:], occu_max[1,:])
+        # notR, notC = s.map.grid_cell_from_xy(notX, notY)
+        maxProposal[max_indices_r, max_indices_c] = 1;
+        s.map.num_obs_per_cell[max_indices_r, max_indices_c] += 1
+        s.map.num_obs_per_cell[x_f, y_f] += 1 # non decreasing
+
+        s.map.log_odds[maxProposal == 1] += s.lidar_log_odds_occ; # mask
+        # s.map.log_odds[maxProposal == 0] += s.lidar_log_odds_free / 10;
+
+        s.map.log_odds[x_f, y_f] += s.lidar_log_odds_free * 0.25;
+
+        s.map.log_odds = np.clip(s.map.log_odds, -s.map.log_odds_max, s.map.log_odds_max);
 
         s.map.cells[s.map.log_odds >= s.map.log_odds_thresh] = 1;
         s.map.cells[s.map.log_odds < s.map.log_odds_thresh] = 0;
